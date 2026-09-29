@@ -86,3 +86,63 @@ def strategy_leaderboard(prices,max_pairs=80):
         except: pass
     rank={"HOLDOUT READY":2,"RESEARCH":1,"REJECTED":0}
     return sorted(rows,key=lambda r:(rank[r["status"]],r["parameter_pass"],r["consistency"],r["dev_return"]),reverse=True)
+
+
+def forward_paper(prices,a,b,start_date=FORWARD_START_DATE,entry=FORWARD_ENTRY_Z,exit=FORWARD_EXIT_Z,cost_bps=FORWARD_COST_BPS):
+    """Track a strategy only from the frozen forward start date, using earlier prices solely for rolling statistics."""
+    pf=pair_frame(prices,a,b)
+    start=pd.Timestamp(start_date)
+    pf=pf.loc[pf.index>=start].copy()
+    if pf.empty:
+        latest_full=pair_frame(prices,a,b)
+        latest_z=float(latest_full.z.iloc[-1]) if len(latest_full) else np.nan
+        signal="WAIT"
+        if np.isfinite(latest_z):
+            if latest_z>=entry: signal="SHORT SPREAD"
+            elif latest_z<=-entry: signal="LONG SPREAD"
+            elif abs(latest_z)<=exit: signal="FLAT / EXIT ZONE"
+        return {"pair":f"{a} / {b}","latest_z":latest_z,"signal":signal,"position":"FLAT","return":0.0,
+                "equity":INITIAL_CAPITAL,"trades":0,"win_rate":0.0,"max_dd":0.0,
+                "trade_log":pd.DataFrame(),"equity_curve":pd.DataFrame(),
+                "latest_date":prices.index.max(),"days_live":0}
+
+    pos=0; eq=INITIAL_CAPITAL; peak=eq; prev=None; entry_eq=None; entry_dt=None
+    alloc=INITIAL_CAPITAL*POSITION_FRACTION; half=alloc*(cost_bps/10000)/2
+    log=[]; curve=[]
+    for dt,row in pf.iterrows():
+        z=float(row.z)
+        if prev is not None and pos:
+            eq += alloc*(pos*(row.a/prev.a-1)-pos*float(row.beta)*(row.b/prev.b-1))
+        if pos==0 and abs(z)>=entry:
+            pos=-1 if z>0 else 1; eq-=half; entry_eq=eq; entry_dt=dt
+            log.append({"date":dt,"event":"ENTRY","side":"SHORT SPREAD" if pos<0 else "LONG SPREAD","z":z,"equity":eq})
+        elif pos and abs(z)<=exit:
+            eq-=half
+            pnl=eq-entry_eq
+            log.append({"date":dt,"event":"EXIT","side":"CLOSE","z":z,"equity":eq,"pnl":pnl,"days":(dt-entry_dt).days})
+            pos=0; entry_eq=None; entry_dt=None
+        peak=max(peak,eq); curve.append({"date":dt,"equity":eq,"drawdown":eq/peak-1}); prev=row
+
+    logdf=pd.DataFrame(log); curvedf=pd.DataFrame(curve).set_index("date") if curve else pd.DataFrame()
+    exits=logdf[logdf["event"]=="EXIT"] if len(logdf) and "event" in logdf else pd.DataFrame()
+    wins=int((exits["pnl"]>0).sum()) if len(exits) and "pnl" in exits else 0
+    latest_z=float(pf.z.iloc[-1])
+    if pos>0: position="LONG SPREAD"
+    elif pos<0: position="SHORT SPREAD"
+    else: position="FLAT"
+    if pos==0:
+        if latest_z>=entry: signal="ENTER SHORT SPREAD"
+        elif latest_z<=-entry: signal="ENTER LONG SPREAD"
+        elif abs(latest_z)<=exit: signal="FLAT / EXIT ZONE"
+        else: signal="WAIT"
+    else:
+        signal="EXIT" if abs(latest_z)<=exit else "HOLD"
+    return {"pair":f"{a} / {b}","latest_z":latest_z,"signal":signal,"position":position,
+            "return":eq/INITIAL_CAPITAL-1,"equity":eq,"trades":len(exits),
+            "win_rate":wins/len(exits) if len(exits) else 0.0,
+            "max_dd":float(curvedf.drawdown.min()) if len(curvedf) else 0.0,
+            "trade_log":logdf,"equity_curve":curvedf,"latest_date":pf.index.max(),
+            "days_live":int((pf.index.max()-start).days)}
+
+def forward_dashboard(prices):
+    return [forward_paper(prices,a,b) for a,b in FORWARD_STRATEGIES]
