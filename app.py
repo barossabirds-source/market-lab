@@ -3,9 +3,9 @@ import pandas as pd
 import plotly.express as px
 from engine import load_prices, strategy_leaderboard, forward_dashboard
 
-st.set_page_config(page_title="Market Lab V4", page_icon="🧪", layout="wide")
-st.title("Market Lab V4")
-st.caption("Adversarial validation • longer history • cost stress • parameter sensitivity • untouched holdout")
+st.set_page_config(page_title="Market Lab V5", page_icon="🧪", layout="wide")
+st.title("Market Lab V5")
+st.caption("Historical validation + live forward paper trading")
 
 CACHE_SCHEMA = "v4.2"
 
@@ -77,7 +77,7 @@ if results:
         use_container_width=True,
     )
 
-with st.expander("V4 methodology"):
+with st.expander("Historical validation methodology"):
     st.markdown("""
 **Longer history:** up to ten years where ETF history permits.
 
