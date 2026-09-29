@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard
-from event_study import trump_event_study, trump_theme_summary
+from event_study import trump_event_study, trump_theme_summary, source_direction_summary, surprise_summary, timing_summary
 
 st.set_page_config(page_title="Market Lab V6", page_icon="🧪", layout="wide")
 st.title("Market Lab V6")
 st.caption("Systematic ETF research + forward paper trading + public-event studies")
 
-CACHE_SCHEMA = "v6.2"
+CACHE_SCHEMA = "v6.3"
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def research(schema_version):
@@ -210,52 +210,109 @@ This is simpler to execute, but unlike the pairs trade it remains exposed to the
 
 st.divider()
 st.subheader("Trump public-event study")
-st.caption("Exploratory research on dated public statements and official actions. It measures ETF moves after the event and compares them with SPY.")
+st.caption("Exploratory event research using source type, direction, timing, a transparent surprise proxy and pre-event price drift.")
 
 study=trump_event_study(prices)
 if not study.empty:
-    ec1,ec2,ec3=st.columns(3)
+    ec1,ec2,ec3,ec4=st.columns(4)
     ec1.metric("Events in corpus",study["date"].nunique())
     ec2.metric("Themes",study["theme"].nunique())
-    ec3.metric("ETF-event observations",len(study))
+    ec3.metric("Public comments/interviews",study.loc[study["source_type"]!="formal_action","date"].nunique())
+    ec4.metric("ETF-event observations",len(study))
+
 if study.empty:
     st.info("No event-study results are available yet.")
 else:
     h=st.selectbox("Event-study horizon",[1,3,5],index=0,format_func=lambda x:f"{x} trading day{'s' if x>1 else ''}",key="trump_horizon")
-    summary=trump_theme_summary(study,h)
-    show=summary.copy()
-    show["Avg abnormal return"]=show["avg_abnormal"].map(lambda x:f"{x:.2%}")
-    show["Median abnormal return"]=show["median_abnormal"].map(lambda x:f"{x:.2%}")
-    show["Positive rate"]=show["positive_rate"].map(lambda x:f"{x:.0%}")
-    show=show[["theme","ticker","events","Avg abnormal return","Median abnormal return","Positive rate"]]
-    show.columns=["Theme","ETF","Events","Avg abnormal return","Median abnormal return","Positive rate"]
-    st.dataframe(show,use_container_width=True,hide_index=True)
 
-    st.caption("Abnormal return means ETF return minus SPY return over the same period. Positive does not mean the event caused the move.")
+    f1,f2,f3,f4=st.columns(4)
+    source_filter=f1.multiselect("Source type",sorted(study["source_type"].unique()),default=sorted(study["source_type"].unique()))
+    direction_filter=f2.multiselect("Direction",sorted(study["direction"].unique()),default=sorted(study["direction"].unique()))
+    surprise_filter=f3.multiselect("Surprise proxy",sorted(study["surprise_proxy"].unique()),default=sorted(study["surprise_proxy"].unique()))
+    timing_filter=f4.multiselect("Market timing",sorted(study["market_session"].unique()),default=sorted(study["market_session"].unique()))
+
+    filtered=study[
+        study["source_type"].isin(source_filter) &
+        study["direction"].isin(direction_filter) &
+        study["surprise_proxy"].isin(surprise_filter) &
+        study["market_session"].isin(timing_filter)
+    ].copy()
+
+    st.subheader("Theme / ETF reaction")
+    summary=trump_theme_summary(filtered,h)
+    if summary.empty:
+        st.info("No observations match the current filters.")
+    else:
+        show=summary.copy()
+        for src,dst in [
+            ("avg_abnormal","Avg abnormal return"),
+            ("median_abnormal","Median abnormal return"),
+            ("positive_rate","Positive rate"),
+            ("avg_pre_1d","Avg pre-event 1d"),
+            ("avg_pre_3d","Avg pre-event 3d"),
+        ]:
+            show[dst]=show[src].map(lambda x:"—" if pd.isna(x) else f"{x:.2%}")
+        show=show[["theme","ticker","events","observations","Avg abnormal return","Median abnormal return","Positive rate","Avg pre-event 1d","Avg pre-event 3d"]]
+        show.columns=["Theme","ETF","Events","Obs","Avg abnormal return","Median abnormal return","Positive rate","Pre-event 1d","Pre-event 3d"]
+        st.dataframe(show,use_container_width=True,hide_index=True)
+
+    st.caption("Abnormal return means ETF return minus SPY over the same period. Pre-event columns help show whether the move had already begun before the event.")
+
+    st.subheader("Does source, direction or surprise matter?")
+    tab1,tab2,tab3=st.tabs(["Source + direction","Surprise proxy","Market timing"])
+    with tab1:
+        s=source_direction_summary(filtered,h)
+        if len(s):
+            sv=s.copy()
+            sv["Avg abnormal return"]=sv["avg_abnormal"].map(lambda x:f"{x:.2%}")
+            sv["Positive rate"]=sv["positive_rate"].map(lambda x:f"{x:.0%}")
+            st.dataframe(sv[["source_type","direction","events","observations","Avg abnormal return","Positive rate"]],use_container_width=True,hide_index=True)
+    with tab2:
+        s=surprise_summary(filtered,h)
+        if len(s):
+            sv=s.copy()
+            sv["Avg abnormal return"]=sv["avg_abnormal"].map(lambda x:f"{x:.2%}")
+            sv["Positive rate"]=sv["positive_rate"].map(lambda x:f"{x:.0%}")
+            st.dataframe(sv[["surprise_proxy","events","observations","Avg abnormal return","Positive rate"]],use_container_width=True,hide_index=True)
+        st.caption("Surprise is a transparent research proxy: high = materially new action; medium = modification/extension/sector support; low = remarks or reiteration without a separately verified new action.")
+    with tab3:
+        s=timing_summary(filtered,h)
+        if len(s):
+            sv=s.copy()
+            sv["Avg abnormal return"]=sv["avg_abnormal"].map(lambda x:f"{x:.2%}")
+            sv["Positive rate"]=sv["positive_rate"].map(lambda x:f"{x:.0%}")
+            st.dataframe(sv[["market_session","events","observations","Avg abnormal return","Positive rate"]],use_container_width=True,hide_index=True)
+        st.caption("Most older sources provide a date but not a verified time, so they remain tagged 'unknown' rather than being guessed.")
 
     st.subheader("Individual events")
-    events_view=study[["date","event_type","theme","summary"]].drop_duplicates().sort_values("date",ascending=False)
+    events_view=filtered[["date","source_type","theme","direction","surprise_proxy","market_session","timing_confidence","summary"]].drop_duplicates().sort_values("date",ascending=False)
     st.dataframe(events_view,use_container_width=True,hide_index=True)
 
-    event_choice=st.selectbox(
-        "Inspect event",
-        options=list(events_view["date"].astype(str)),
-        key="trump_event_choice"
-    )
-    d=study[study["date"]==pd.Timestamp(event_choice)].copy()
-    d[f"abn_{h}d_pct"]=d[f"abn_{h}d"]*100
-    st.plotly_chart(
-        px.bar(d.sort_values(f"abn_{h}d"),x="ticker",y=f"abn_{h}d_pct",
-               labels={"ticker":"ETF",f"abn_{h}d_pct":"Abnormal return (%)"},
-               title=f"ETF reaction vs SPY after {h} trading day{'s' if h>1 else ''}"),
-        use_container_width=True
-    )
+    if len(events_view):
+        choices=[f"{row.date.date()} | {row.theme} | {row.source_type}" for _,row in events_view.iterrows()]
+        chosen=st.selectbox("Inspect event",choices,key="trump_event_choice_smart")
+        chosen_idx=choices.index(chosen)
+        chosen_date=events_view.iloc[chosen_idx]["date"]
+        chosen_theme=events_view.iloc[chosen_idx]["theme"]
+        d=filtered[(filtered["date"]==chosen_date)&(filtered["theme"]==chosen_theme)].copy()
+        d[f"abn_{h}d_pct"]=d[f"abn_{h}d"]*100
+        st.plotly_chart(
+            px.bar(d.sort_values(f"abn_{h}d"),x="ticker",y=f"abn_{h}d_pct",
+                   labels={"ticker":"ETF",f"abn_{h}d_pct":"Abnormal return (%)"},
+                   title=f"ETF reaction vs SPY after {h} trading day{'s' if h>1 else ''}"),
+            use_container_width=True
+        )
 
-    with st.expander("How to interpret this"):
+    with st.expander("Methodology and limitations"):
         st.markdown("""
-This module asks a narrow question: **after a dated public Trump statement or official action, did selected ETFs move differently from SPY?**
+**Direction** describes the event content, such as escalation, de-escalation, sector support or mixed.
 
-It does **not** assume the statement caused the move, and it does not infer intent. With only a small number of events, apparent patterns can easily be coincidence.
+**Surprise proxy** is deliberately rule-based rather than a claim about investor psychology. A materially new action is tagged high; a modification, extension or sector-support action is medium; remarks without a separately verified new action are low.
 
-The useful next step is to expand the event catalogue substantially and separate events by theme, wording, timing, surprise, and whether the statement occurred during or outside market hours.
+**Timing** is only assigned when the source gives enough information. Unknown events stay unknown. Daily ETF data cannot cleanly isolate a comment made halfway through the trading session, so timing-based results should be treated cautiously.
+
+**Pre-event drift** compares the ETF with SPY before the event. If the ETF was already moving strongly beforehand, that weakens the case that the event itself explains the subsequent move.
+
+This remains descriptive research. It does not establish causation or a reliable trading rule.
 """)
+
