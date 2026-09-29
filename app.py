@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from engine import load_prices, strategy_leaderboard
+from engine import load_prices, strategy_leaderboard, forward_dashboard
 
 st.set_page_config(page_title="Market Lab V4", page_icon="🧪", layout="wide")
 st.title("Market Lab V4")
@@ -91,3 +91,52 @@ The next step for a strategy that survives is forward paper trading on genuinely
 """)
 
 st.info("Research software only. No brokerage connection or live orders. Historical performance does not establish future profitability.")
+
+
+st.divider()
+st.subheader("Forward paper trading")
+st.caption("Rules frozen on 29 Sep 2026. This section only counts market data from that date onward.")
+
+forward = forward_dashboard(prices)
+frows=[]
+for x in forward:
+    frows.append({
+        "Pair":x["pair"],
+        "Latest date":str(pd.Timestamp(x["latest_date"]).date()),
+        "Latest z":f'{x["latest_z"]:.2f}',
+        "Position":x["position"],
+        "Signal":x["signal"],
+        "Forward return":f'{x["return"]:.2%}',
+        "Completed trades":x["trades"],
+        "Win rate":f'{x["win_rate"]:.0%}' if x["trades"] else "—",
+        "Max DD":f'{x["max_dd"]:.2%}',
+    })
+st.dataframe(pd.DataFrame(frows),use_container_width=True,hide_index=True)
+
+st.caption("Until US market data exists after 29 Sep 2026, the tracker will mostly show WAIT/FLAT. That is expected.")
+
+fpick=st.selectbox("Inspect forward strategy",[x["pair"] for x in forward],key="forward_pair")
+fx=next(x for x in forward if x["pair"]==fpick)
+
+fc1,fc2,fc3,fc4=st.columns(4)
+fc1.metric("Current z-score",f'{fx["latest_z"]:.2f}')
+fc2.metric("Current position",fx["position"])
+fc3.metric("Forward return",f'{fx["return"]:.2%}')
+fc4.metric("Completed trades",fx["trades"])
+
+if len(fx["equity_curve"]):
+    e=fx["equity_curve"].reset_index()
+    st.plotly_chart(px.line(e,x="date",y="equity",title="Forward paper equity"),use_container_width=True)
+else:
+    st.info("No forward market days have been recorded yet.")
+
+if len(fx["trade_log"]):
+    st.subheader("Forward trade log")
+    st.dataframe(fx["trade_log"],use_container_width=True,hide_index=True)
+
+with st.expander("What happens from here"):
+    st.markdown("""
+The three strategies are frozen at the existing rules: entry at |z| ≥ 2.0, exit at |z| ≤ 0.5, 8 bps assumed round-trip cost, and the same position sizing used in the research engine.
+
+Each time fresh daily market data becomes available, this section updates what the strategy *would* have done. We do not change the parameters in response to these forward results.
+""")
