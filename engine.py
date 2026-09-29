@@ -146,3 +146,139 @@ def forward_paper(prices,a,b,start_date=FORWARD_START_DATE,entry=FORWARD_ENTRY_Z
 
 def forward_dashboard(prices):
     return [forward_paper(prices,a,b) for a,b in FORWARD_STRATEGIES]
+
+
+def backtest_long_only(df,entry=2.0,exit=0.5,cost_bps=BASE_COST_BPS):
+    """Long-only mean reversion: buy only the ETF that is relatively cheap, then exit near normal."""
+    holding=None; eq=INITIAL_CAPITAL; peak=eq; prev=None; entry_eq=None; entry_dt=None
+    alloc=INITIAL_CAPITAL*POSITION_FRACTION; half=alloc*(cost_bps/10000)/2
+    trades=[]; daily=[]
+    for dt,row in df.iterrows():
+        z=float(row.z)
+        if prev is not None and holding:
+            if holding=="A":
+                eq += alloc*(row.a/prev.a-1)
+            else:
+                eq += alloc*(row.b/prev.b-1)
+        if holding is None:
+            if z<=-entry:
+                holding="A"; eq-=half; entry_eq=eq; entry_dt=dt
+            elif z>=entry:
+                holding="B"; eq-=half; entry_eq=eq; entry_dt=dt
+        elif abs(z)<=exit:
+            eq-=half
+            trades.append({"entry":entry_dt,"exit":dt,"leg":holding,"pnl":eq-entry_eq,"days":(dt-entry_dt).days})
+            holding=None; entry_eq=None; entry_dt=None
+        peak=max(peak,eq)
+        daily.append((dt,eq,eq/peak-1))
+        prev=row
+    q=pd.DataFrame(daily,columns=["date","equity","drawdown"]).set_index("date")
+    t=pd.DataFrame(trades)
+    dr=q.equity.pct_change().dropna()
+    sh=float(np.sqrt(252)*dr.mean()/dr.std()) if len(dr)>2 and dr.std()>0 else 0.0
+    gp=float(t.loc[t.pnl>0,"pnl"].sum()) if len(t) else 0.0
+    gl=abs(float(t.loc[t.pnl<0,"pnl"].sum())) if len(t) else 0.0
+    return {"return":eq/INITIAL_CAPITAL-1,"trades":len(t),
+            "win_rate":float((t.pnl>0).mean()) if len(t) else 0.0,
+            "sharpe":sh,"max_dd":float(q.drawdown.min()) if len(q) else 0.0,
+            "profit_factor":gp/gl if gl else (np.inf if gp else 0.0),
+            "holding":holding,"trade_log":t,"equity_curve":q}
+
+def walk_forward_long_only(prices,a,b,entry=2.0,exit=.5,cost=BASE_COST_BPS):
+    n=len(prices); min_train=max(ROLLING_WINDOW*4,int(n*.40))
+    usable=n-min_train; step=max(80,usable//WALK_FORWARD_WINDOWS); rows=[]
+    for i in range(WALK_FORWARD_WINDOWS):
+        te=min_train+i*step; end=min(n,te+step)
+        if end-te<40: break
+        test=prices.iloc[max(0,te-ROLLING_WINDOW*2):end]
+        pf=pair_frame(test,a,b)
+        if len(pf)<30: continue
+        bt=backtest_long_only(pf,entry,exit,cost)
+        rows.append({"window":i+1,**{k:bt[k] for k in ["return","trades","win_rate","sharpe","max_dd","profit_factor"]}})
+    return pd.DataFrame(rows)
+
+def compare_execution_models(prices,a,b):
+    """Compare pair-trade vs long-only on identical development and final-holdout periods."""
+    cut=int(len(prices)*(1-HOLDOUT_FRACTION))
+    dev=prices.iloc[:cut]
+    hold=prices.iloc[max(0,cut-ROLLING_WINDOW*2):]
+
+    pair_dev=walk_forward(dev,a,b,FORWARD_ENTRY_Z,FORWARD_EXIT_Z,FORWARD_COST_BPS)
+    long_dev=walk_forward_long_only(dev,a,b,FORWARD_ENTRY_Z,FORWARD_EXIT_Z,FORWARD_COST_BPS)
+
+    hpf=pair_frame(hold,a,b)
+    pair_hold=backtest(hpf,FORWARD_ENTRY_Z,FORWARD_EXIT_Z,FORWARD_COST_BPS)
+    long_hold=backtest_long_only(hpf,FORWARD_ENTRY_Z,FORWARD_EXIT_Z,FORWARD_COST_BPS)
+
+    def comp(w):
+        if w.empty: return {"return":0.0,"trades":0,"win_rate":0.0,"sharpe":0.0,"max_dd":0.0}
+        return {"return":float(np.prod(1+w["return"])-1),
+                "trades":int(w.trades.sum()),
+                "win_rate":float(np.average(w.win_rate,weights=np.maximum(w.trades,1))),
+                "sharpe":float(w.sharpe.mean()),
+                "max_dd":float(w.max_dd.min())}
+
+    return {"pair":f"{a} / {b}",
+            "pairs_dev":comp(pair_dev),"long_dev":comp(long_dev),
+            "pairs_hold":pair_hold,"long_hold":long_hold}
+
+def forward_long_only(prices,a,b,start_date=FORWARD_START_DATE,entry=FORWARD_ENTRY_Z,exit=FORWARD_EXIT_Z,cost_bps=FORWARD_COST_BPS):
+    full=pair_frame(prices,a,b)
+    start=pd.Timestamp(start_date)
+    pf=full.loc[full.index>=start].copy()
+    latest_z=float(full.z.iloc[-1]) if len(full) else np.nan
+    if pf.empty:
+        target="WAIT"
+        if np.isfinite(latest_z):
+            if latest_z<=-entry: target=f"BUY {a}"
+            elif latest_z>=entry: target=f"BUY {b}"
+            elif abs(latest_z)<=exit: target="FLAT / EXIT ZONE"
+        return {"pair":f"{a} / {b}","latest_z":latest_z,"signal":target,"position":"FLAT",
+                "return":0.0,"trades":0,"win_rate":0.0,"max_dd":0.0,
+                "trade_log":pd.DataFrame(),"equity_curve":pd.DataFrame(),
+                "latest_date":prices.index.max()}
+
+    holding=None; eq=INITIAL_CAPITAL; peak=eq; prev=None; entry_eq=None; entry_dt=None
+    alloc=INITIAL_CAPITAL*POSITION_FRACTION; half=alloc*(cost_bps/10000)/2
+    log=[]; curve=[]
+    for dt,row in pf.iterrows():
+        z=float(row.z)
+        if prev is not None and holding:
+            eq += alloc*((row.a/prev.a-1) if holding=="A" else (row.b/prev.b-1))
+        if holding is None:
+            if z<=-entry:
+                holding="A"; eq-=half; entry_eq=eq; entry_dt=dt
+                log.append({"date":dt,"event":"ENTRY","side":f"BUY {a}","z":z,"equity":eq})
+            elif z>=entry:
+                holding="B"; eq-=half; entry_eq=eq; entry_dt=dt
+                log.append({"date":dt,"event":"ENTRY","side":f"BUY {b}","z":z,"equity":eq})
+        elif abs(z)<=exit:
+            eq-=half
+            log.append({"date":dt,"event":"EXIT","side":"SELL","z":z,"equity":eq,
+                        "pnl":eq-entry_eq,"days":(dt-entry_dt).days})
+            holding=None; entry_eq=None; entry_dt=None
+        peak=max(peak,eq); curve.append({"date":dt,"equity":eq,"drawdown":eq/peak-1}); prev=row
+
+    logdf=pd.DataFrame(log)
+    curvedf=pd.DataFrame(curve).set_index("date") if curve else pd.DataFrame()
+    exits=logdf[logdf["event"]=="EXIT"] if len(logdf) else pd.DataFrame()
+    wins=int((exits["pnl"]>0).sum()) if len(exits) and "pnl" in exits else 0
+    position="FLAT" if holding is None else (f"LONG {a}" if holding=="A" else f"LONG {b}")
+    if holding is None:
+        if latest_z<=-entry: signal=f"BUY {a}"
+        elif latest_z>=entry: signal=f"BUY {b}"
+        elif abs(latest_z)<=exit: signal="FLAT / EXIT ZONE"
+        else: signal="WAIT"
+    else:
+        signal="SELL / EXIT" if abs(latest_z)<=exit else "HOLD"
+    return {"pair":f"{a} / {b}","latest_z":latest_z,"signal":signal,"position":position,
+            "return":eq/INITIAL_CAPITAL-1,"trades":len(exits),
+            "win_rate":wins/len(exits) if len(exits) else 0.0,
+            "max_dd":float(curvedf.drawdown.min()) if len(curvedf) else 0.0,
+            "trade_log":logdf,"equity_curve":curvedf,"latest_date":pf.index.max()}
+
+def model_comparison_dashboard(prices):
+    return [compare_execution_models(prices,a,b) for a,b in FORWARD_STRATEGIES]
+
+def forward_long_only_dashboard(prices):
+    return [forward_long_only(prices,a,b) for a,b in FORWARD_STRATEGIES]
