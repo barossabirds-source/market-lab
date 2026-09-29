@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard, trump_event_study, trump_theme_summary
+from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard\nfrom event_study import trump_event_study, trump_theme_summary
 
 st.set_page_config(page_title="Market Lab V6", page_icon="🧪", layout="wide")
 st.title("Market Lab V6")
 st.caption("Systematic ETF research + forward paper trading + public-event studies")
 
-CACHE_SCHEMA = "v4.2"
+CACHE_SCHEMA = "v6.1"
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def research(schema_version):
