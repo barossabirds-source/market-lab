@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from engine import load_prices, strategy_leaderboard, forward_dashboard
+from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard
 
 st.set_page_config(page_title="Market Lab V5", page_icon="🧪", layout="wide")
 st.title("Market Lab V5")
@@ -139,4 +139,69 @@ with st.expander("What happens from here"):
 The three strategies are frozen at the existing rules: entry at |z| ≥ 2.0, exit at |z| ≤ 0.5, 8 bps assumed round-trip cost, and the same position sizing used in the research engine.
 
 Each time fresh daily market data becomes available, this section updates what the strategy *would* have done. We do not change the parameters in response to these forward results.
+""")
+
+
+st.divider()
+st.subheader("Pairs vs long-only")
+st.caption("Same signals, same ETFs, same historical periods. The only difference is execution: hedge both legs, or buy only the relatively cheaper ETF.")
+
+comparisons=model_comparison_dashboard(prices)
+comparison_rows=[]
+for c in comparisons:
+    comparison_rows.extend([
+        {"Pair":c["pair"],"Model":"Pairs trade","Development return":f'{c["pairs_dev"]["return"]:.2%}',
+         "Dev trades":c["pairs_dev"]["trades"],"Holdout return":f'{c["pairs_hold"]["return"]:.2%}',
+         "Holdout trades":c["pairs_hold"]["trades"],"Holdout Sharpe":f'{c["pairs_hold"]["sharpe"]:.2f}',
+         "Holdout max DD":f'{c["pairs_hold"]["max_dd"]:.2%}'},
+        {"Pair":c["pair"],"Model":"Long-only","Development return":f'{c["long_dev"]["return"]:.2%}',
+         "Dev trades":c["long_dev"]["trades"],"Holdout return":f'{c["long_hold"]["return"]:.2%}',
+         "Holdout trades":c["long_hold"]["trades"],"Holdout Sharpe":f'{c["long_hold"]["sharpe"]:.2f}',
+         "Holdout max DD":f'{c["long_hold"]["max_dd"]:.2%}'},
+    ])
+st.dataframe(pd.DataFrame(comparison_rows),use_container_width=True,hide_index=True)
+st.caption("The long-only model was introduced after the original pairs holdout had already been viewed, so treat its historical comparison as exploratory. The clean test is forward performance from 29 Sep 2026 onward.")
+
+st.subheader("Forward long-only paper trading")
+st.caption("When z ≤ -2, buy ETF A. When z ≥ +2, buy ETF B. Sell when the relationship returns inside ±0.5.")
+
+long_forward=forward_long_only_dashboard(prices)
+lfrows=[]
+for x in long_forward:
+    lfrows.append({
+        "Pair":x["pair"],
+        "Latest date":str(pd.Timestamp(x["latest_date"]).date()),
+        "Latest z":f'{x["latest_z"]:.2f}',
+        "Position":x["position"],
+        "Signal":x["signal"],
+        "Forward return":f'{x["return"]:.2%}',
+        "Completed trades":x["trades"],
+        "Win rate":f'{x["win_rate"]:.0%}' if x["trades"] else "—",
+        "Max DD":f'{x["max_dd"]:.2%}',
+    })
+st.dataframe(pd.DataFrame(lfrows),use_container_width=True,hide_index=True)
+
+lpick=st.selectbox("Inspect long-only forward strategy",[x["pair"] for x in long_forward],key="long_forward_pair")
+lx=next(x for x in long_forward if x["pair"]==lpick)
+lc1,lc2,lc3,lc4=st.columns(4)
+lc1.metric("Current z-score",f'{lx["latest_z"]:.2f}')
+lc2.metric("Current position",lx["position"])
+lc3.metric("Forward return",f'{lx["return"]:.2%}')
+lc4.metric("Completed trades",lx["trades"])
+
+if len(lx["equity_curve"]):
+    le=lx["equity_curve"].reset_index()
+    st.plotly_chart(px.line(le,x="date",y="equity",title="Long-only forward paper equity"),use_container_width=True)
+
+if len(lx["trade_log"]):
+    st.subheader("Long-only trade log")
+    st.dataframe(lx["trade_log"],use_container_width=True,hide_index=True)
+
+with st.expander("Long-only model in plain English"):
+    st.markdown("""
+If one ETF becomes unusually cheap relative to its partner, Market Lab buys only that ETF. It does **not** short the expensive ETF.
+
+Example: if IWF looks unusually cheap relative to SPY, the model paper-buys IWF. When the relationship moves back near normal, it paper-sells IWF.
+
+This is simpler to execute, but unlike the pairs trade it remains exposed to the direction of the overall stock market.
 """)
