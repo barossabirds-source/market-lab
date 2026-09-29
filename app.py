@@ -5,7 +5,7 @@ st.set_page_config(page_title="Market Lab V4",page_icon="🧪",layout="wide")
 st.title("Market Lab V4")
 st.caption("Adversarial validation • longer history • cost stress • parameter sensitivity • untouched holdout")
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)\n# Cache schema V4.1: change this token when result fields change.\nCACHE_SCHEMA = "v4.1"
 def research():
     p=load_prices(); return p,strategy_leaderboard(p)
 
@@ -19,10 +19,10 @@ c3.metric("Holdout-ready",sum(r["status"]=="HOLDOUT READY" for r in results)); c
 st.subheader("Development leaderboard")
 rows=[]
 for r in results:
-    rows.append({"Pair":r["pair"],"Dev WF return":f'{r["dev_return"]:.2%}',"Trades":r["trades"],
+    rows.append({"Pair":r["pair"],"Dev WF return":f'{r.get("dev_return", r.get("wf_return", 0.0)):.2%}',"Trades":r["trades"],
       "Positive windows":f'{r["consistency"]:.0%}',"Stationary":f'{r["stationary_rate"]:.0%}',
-      "Avg Sharpe":f'{r["sharpe"]:.2f}',"Worst DD":f'{r["max_dd"]:.2%}',"Parameter pass":f'{r["parameter_pass"]:.0%}',
-      "8 bps":f'{r["cost8"]:.2%}',"15 bps":f'{r["cost15"]:.2%}',"25 bps":f'{r["cost25"]:.2%}',"Status":r["status"]})
+      "Avg Sharpe":f'{r["sharpe"]:.2f}',"Worst DD":f'{r["max_dd"]:.2%}',"Parameter pass":f'{r.get("parameter_pass", 0.0):.0%}',
+      "8 bps":f'{r.get("cost8", 0.0):.2%}',"15 bps":f'{r.get("cost15", 0.0):.2%}',"25 bps":f'{r.get("cost25", 0.0):.2%}',"Status":r["status"]})
 st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
 st.caption("The final 15% of history is excluded from these selection metrics. HOLDOUT READY means the strategy survived walk-forward, stationarity, parameter and 25-bps cost stress gates.")
 
