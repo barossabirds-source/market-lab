@@ -8,7 +8,7 @@ st.set_page_config(page_title="Market Lab V6", page_icon="🧪", layout="wide")
 st.title("Market Lab V6")
 st.caption("Systematic ETF research + forward paper trading + public-event studies")
 
-CACHE_SCHEMA = "v6.1"
+CACHE_SCHEMA = "v6.2"
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def research(schema_version):
@@ -213,6 +213,11 @@ st.subheader("Trump public-event study")
 st.caption("Exploratory research on dated public statements and official actions. It measures ETF moves after the event and compares them with SPY.")
 
 study=trump_event_study(prices)
+if not study.empty:
+    ec1,ec2,ec3=st.columns(3)
+    ec1.metric("Events in corpus",study["date"].nunique())
+    ec2.metric("Themes",study["theme"].nunique())
+    ec3.metric("ETF-event observations",len(study))
 if study.empty:
     st.info("No event-study results are available yet.")
 else:
