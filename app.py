@@ -1,72 +1,55 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
-from engine import load_prices, strategy_leaderboard
+from engine import load_prices,strategy_leaderboard
 
-st.set_page_config(page_title="Market Lab",page_icon="📈",layout="wide")
-st.title("Market Lab")
-st.caption("Systematic ETF research lab • paper trading only")
+st.set_page_config(page_title="Market Lab V3",page_icon="📈",layout="wide")
+st.title("Market Lab V3")
+st.caption("Walk-forward ETF strategy validation • paper research only")
 
 @st.cache_data(ttl=3600)
 def research():
-    prices=load_prices()
-    return prices,strategy_leaderboard(prices)
+    p=load_prices(); return p,strategy_leaderboard(p)
 
-with st.spinner("Downloading prices and testing every candidate pair..."):
+with st.spinner("Testing a larger ETF universe across multiple unseen windows..."):
     prices,results=research()
 
 c1,c2,c3,c4=st.columns(4)
-c1.metric("ETFs",len(prices.columns))
-c2.metric("Pairs tested",len(results))
-c3.metric("Paper-test candidates",sum(r["status"]=="PAPER TEST" for r in results))
-c4.metric("Latest data",str(prices.index.max().date()))
+c1.metric("ETFs loaded",len(prices.columns)); c2.metric("Pairs validated",len(results))
+c3.metric("Paper-test candidates",sum(r["status"]=="PAPER TEST" for r in results)); c4.metric("Latest data",str(prices.index.max().date()))
 
-st.subheader("Strategy leaderboard")
-if not results:
-    st.warning("No candidate pairs met the correlation threshold.")
-    st.stop()
+st.subheader("Walk-forward leaderboard")
+if not results: st.warning("No strategies could be validated."); st.stop()
+rows=[]
+for r in results:
+    rows.append({"Pair":r["pair"],"Correlation":f'{r["correlation"]:.3f}',"WF return":f'{r["wf_return"]:.2%}',
+      "Trades":r["trades"],"Positive windows":f'{r["consistency"]:.0%}',"Stationary windows":f'{r["stationary_rate"]:.0%}',
+      "Avg Sharpe":f'{r["sharpe"]:.2f}',"Worst DD":f'{r["max_dd"]:.2%}',
+      "Profit factor":"∞" if np.isinf(r["profit_factor"]) else f'{r["profit_factor"]:.2f}',"Status":r["status"]})
+st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+st.caption("Walk-forward return compounds separate unseen test windows. Positive windows shows how often the strategy made money rather than relying on one lucky period.")
 
-table=pd.DataFrame([{k:r[k] for k in ["pair","correlation","adf_p","stationary","test_return","trades","win_rate","sharpe","max_dd","avg_days","status"]} for r in results])
-show=table.copy()
-for col in ["correlation","adf_p","sharpe"]: show[col]=show[col].map(lambda x:f"{x:.3f}")
-for col in ["test_return","win_rate","max_dd"]: show[col]=show[col].map(lambda x:f"{x:.2%}")
-show["avg_days"]=show["avg_days"].map(lambda x:f"{x:.1f}")
-show.columns=["Pair","Correlation","ADF p","Stationary?","Test return","Trades","Win rate","Sharpe","Max DD","Avg days","Status"]
-st.dataframe(show,use_container_width=True,hide_index=True)
-
-st.caption("ADF p < 0.05 is evidence the training-period spread was stationary. Results are ranked from unseen out-of-sample data, not the training period.")
-
-pick=st.selectbox("Inspect strategy",[r["pair"] for r in results])
-r=next(x for x in results if x["pair"]==pick)
-pf=r["test_frame"]; bt=r["test_result"]
-
+pick=st.selectbox("Inspect strategy",[r["pair"] for r in results]); r=next(x for x in results if x["pair"]==pick); w=r["windows"].copy()
 m1,m2,m3,m4,m5=st.columns(5)
-m1.metric("Out-of-sample return",f"{r['test_return']:.2%}")
-m2.metric("Completed trades",r["trades"])
-m3.metric("Win rate",f"{r['win_rate']:.1%}")
-m4.metric("Sharpe",f"{r['sharpe']:.2f}")
-m5.metric("Max drawdown",f"{r['max_dd']:.2%}")
+m1.metric("Walk-forward return",f'{r["wf_return"]:.2%}'); m2.metric("Trades",r["trades"])
+m3.metric("Positive windows",f'{r["consistency"]:.0%}'); m4.metric("Stationary windows",f'{r["stationary_rate"]:.0%}'); m5.metric("Worst DD",f'{r["max_dd"]:.2%}')
 
-st.subheader("Out-of-sample z-score")
-fig=px.line(pf.reset_index(),x=pf.index.name or "Date",y="z")
-fig.add_hline(y=2,line_dash="dash"); fig.add_hline(y=-2,line_dash="dash"); fig.add_hline(y=0,line_dash="dot")
-st.plotly_chart(fig,use_container_width=True)
+st.subheader("Performance by unseen window")
+chart=w[["window","return"]].copy(); chart["return_pct"]=chart["return"]*100
+st.plotly_chart(px.bar(chart,x="window",y="return_pct",labels={"window":"Validation window","return_pct":"Return (%)"}),use_container_width=True)
 
-st.subheader("Out-of-sample simulated equity")
-eq=bt["equity"].reset_index()
-st.plotly_chart(px.line(eq,x="date",y="equity"),use_container_width=True)
+display=w.copy()
+for col in ["return","win_rate","max_dd"]: display[col]=display[col].map(lambda x:f"{x:.2%}")
+display["adf_p"]=display["adf_p"].map(lambda x:f"{x:.3f}")
+display["sharpe"]=display["sharpe"].map(lambda x:f"{x:.2f}")
+display["profit_factor"]=display["profit_factor"].map(lambda x:"∞" if np.isinf(x) else f"{x:.2f}")
+st.dataframe(display,use_container_width=True,hide_index=True)
 
-st.subheader("Completed trades")
-if bt["trades"].empty: st.info("No completed trades in the test period.")
-else: st.dataframe(bt["trades"],use_container_width=True,hide_index=True)
-
-with st.expander("How to read the status"):
+with st.expander("What V3 is doing"):
     st.markdown("""
-**PAPER TEST** means the training spread passed the stationarity test and the unseen test period had at least 3 completed trades, positive return and positive Sharpe. It is a research filter, not a recommendation.
+Market Lab now downloads about five years of data for a broader liquid ETF universe. Candidate pairs first need sufficiently correlated daily returns. Each pair is then tested repeatedly using expanding historical training data followed by a genuinely later test window.
 
-**RESEARCH** means there is not enough evidence yet.
-
-**REJECTED** means the simple version failed a basic research rule. Rejected strategies can still behave differently under other specifications.
+A **PAPER TEST** label requires the relationship to be stationary in most training windows, enough completed trades, positive compounded walk-forward performance, positive performance in most unseen windows and a positive average Sharpe. This is a research gate, not a trading recommendation.
 """)
-
-st.info("Research mode only. No brokerage connection and no live orders. Backtests can overstate real-world performance.")
+st.info("No brokerage connection. No live orders. Historical and paper results do not establish future profitability.")
