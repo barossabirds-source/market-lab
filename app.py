@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard
+from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard, trump_event_study, trump_theme_summary
 
-st.set_page_config(page_title="Market Lab V5", page_icon="🧪", layout="wide")
-st.title("Market Lab V5")
-st.caption("Historical validation + live forward paper trading")
+st.set_page_config(page_title="Market Lab V6", page_icon="🧪", layout="wide")
+st.title("Market Lab V6")
+st.caption("Systematic ETF research + forward paper trading + public-event studies")
 
 CACHE_SCHEMA = "v4.2"
 
@@ -204,4 +204,52 @@ If one ETF becomes unusually cheap relative to its partner, Market Lab buys only
 Example: if IWF looks unusually cheap relative to SPY, the model paper-buys IWF. When the relationship moves back near normal, it paper-sells IWF.
 
 This is simpler to execute, but unlike the pairs trade it remains exposed to the direction of the overall stock market.
+""")
+
+
+st.divider()
+st.subheader("Trump public-event study")
+st.caption("Exploratory research on dated public statements and official actions. It measures ETF moves after the event and compares them with SPY.")
+
+study=trump_event_study(prices)
+if study.empty:
+    st.info("No event-study results are available yet.")
+else:
+    h=st.selectbox("Event-study horizon",[1,3,5],index=0,format_func=lambda x:f"{x} trading day{'s' if x>1 else ''}",key="trump_horizon")
+    summary=trump_theme_summary(study,h)
+    show=summary.copy()
+    show["Avg abnormal return"]=show["avg_abnormal"].map(lambda x:f"{x:.2%}")
+    show["Median abnormal return"]=show["median_abnormal"].map(lambda x:f"{x:.2%}")
+    show["Positive rate"]=show["positive_rate"].map(lambda x:f"{x:.0%}")
+    show=show[["theme","ticker","events","Avg abnormal return","Median abnormal return","Positive rate"]]
+    show.columns=["Theme","ETF","Events","Avg abnormal return","Median abnormal return","Positive rate"]
+    st.dataframe(show,use_container_width=True,hide_index=True)
+
+    st.caption("Abnormal return means ETF return minus SPY return over the same period. Positive does not mean the event caused the move.")
+
+    st.subheader("Individual events")
+    events_view=study[["date","event_type","theme","summary"]].drop_duplicates().sort_values("date",ascending=False)
+    st.dataframe(events_view,use_container_width=True,hide_index=True)
+
+    event_choice=st.selectbox(
+        "Inspect event",
+        options=list(events_view["date"].astype(str)),
+        key="trump_event_choice"
+    )
+    d=study[study["date"]==pd.Timestamp(event_choice)].copy()
+    d[f"abn_{h}d_pct"]=d[f"abn_{h}d"]*100
+    st.plotly_chart(
+        px.bar(d.sort_values(f"abn_{h}d"),x="ticker",y=f"abn_{h}d_pct",
+               labels={"ticker":"ETF",f"abn_{h}d_pct":"Abnormal return (%)"},
+               title=f"ETF reaction vs SPY after {h} trading day{'s' if h>1 else ''}"),
+        use_container_width=True
+    )
+
+    with st.expander("How to interpret this"):
+        st.markdown("""
+This module asks a narrow question: **after a dated public Trump statement or official action, did selected ETFs move differently from SPY?**
+
+It does **not** assume the statement caused the move, and it does not infer intent. With only a small number of events, apparent patterns can easily be coincidence.
+
+The useful next step is to expand the event catalogue substantially and separate events by theme, wording, timing, surprise, and whether the statement occurred during or outside market hours.
 """)
