@@ -50,6 +50,7 @@ def _relative_return(prices, ticker, benchmark, start_pos, end_pos):
     return asset, asset - bench
 
 def trump_event_study(prices, benchmark="SPY", events_path="trump_events.csv", horizons=(1, 3, 5)):
+    """Build a point-in-time event ledger and measure reactions without rewriting event labels after outcomes are known."""
     """Build a point-in-time event ledger and measure market reactions without rewriting event labels after outcomes are known."""
     events = load_trump_events(events_path)
     rows = []
@@ -97,6 +98,8 @@ def trump_event_study(prices, benchmark="SPY", events_path="trump_events.csv", h
                 asset, abnormal = _relative_return(prices, ticker, benchmark, base, end)
                 record[f"ret_{h}d"] = asset
                 record[f"abn_{h}d"] = abnormal
+                pre_control = record.get(f"pre_abn_{h}d", np.nan)
+                record[f"reaction_vs_pre_{h}d"] = abnormal - pre_control if pd.notna(pre_control) else np.nan
                 # Incremental reaction versus the same-length pre-event abnormal move.
                 pre_control = record.get(f"pre_abn_{h}d", np.nan)
                 record[f"reaction_vs_pre_{h}d"] = abnormal - pre_control if pd.notna(pre_control) else np.nan
@@ -118,6 +121,8 @@ def grouped_event_summary(study, group_cols, horizon=1):
         positive_rate=(col, lambda x: float((x > 0).mean())),
         avg_pre_1d=("pre_abn_1d", "mean"),
         avg_pre_3d=("pre_abn_3d", "mean"),
+        avg_pre_5d=("pre_abn_5d", "mean"),
+        avg_reaction_vs_pre=(f"reaction_vs_pre_{horizon}d", "mean"),
         avg_pre_5d=("pre_abn_5d", "mean"),
         avg_reaction_vs_pre=(f"reaction_vs_pre_{horizon}d", "mean"),
     ).reset_index()
