@@ -123,8 +123,6 @@ def grouped_event_summary(study, group_cols, horizon=1):
         avg_pre_3d=("pre_abn_3d", "mean"),
         avg_pre_5d=("pre_abn_5d", "mean"),
         avg_reaction_vs_pre=(f"reaction_vs_pre_{horizon}d", "mean"),
-        avg_pre_5d=("pre_abn_5d", "mean"),
-        avg_reaction_vs_pre=(f"reaction_vs_pre_{horizon}d", "mean"),
     ).reset_index()
     return grouped.sort_values(["avg_abnormal", "events"], ascending=[False, False])
 
