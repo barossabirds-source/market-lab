@@ -40,7 +40,7 @@ st.set_page_config(page_title="Market Lab V6", page_icon="🧪", layout="wide")
 st.title("Market Lab V6")
 st.caption("Researching share-market strategies, simulated trading on new data, and market reactions to public events")
 
-CACHE_SCHEMA = "v6.4"
+CACHE_SCHEMA = "v6.5"
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def research(schema_version):
@@ -282,14 +282,16 @@ else:
             ("positive_rate","Positive rate"),
             ("avg_pre_1d","Avg pre-event 1d"),
             ("avg_pre_3d","Avg pre-event 3d"),
+            ("avg_pre_5d","Avg pre-event 5d"),
+            ("avg_reaction_vs_pre","Reaction vs prior move"),
         ]:
             show[dst]=show[src].map(lambda x:"—" if pd.isna(x) else f"{x:.2%}")
         show["ticker"]=show["ticker"].map(fund_name)
-        show=show[["theme","ticker","events","observations","Avg abnormal return","Median abnormal return","Positive rate","Avg pre-event 1d","Avg pre-event 3d"]]
-        show.columns=["Subject","Share-market fund","Events","Observations","Average result vs broad market","Middle result vs broad market","Percentage positive","1 day before event","3 days before event"]
+        show=show[["theme","ticker","events","observations","Avg abnormal return","Median abnormal return","Positive rate","Avg pre-event 1d","Avg pre-event 3d","Avg pre-event 5d","Reaction vs prior move"]]
+        show.columns=["Subject","Share-market fund","Events","Observations","Average result vs broad market","Middle result vs broad market","Percentage positive","1 day before event","3 days before event","5 days before event","Reaction after event vs prior move"]
         st.dataframe(show,use_container_width=True,hide_index=True)
 
-    st.caption("Results show how much better or worse each share-market fund performed than the broad US market over the same period. The before-event columns show whether the move had already started.")
+    st.caption("Results show how much better or worse each fund performed than the broad US market. The before-event columns show whether the move had already started. Reaction after event vs prior move subtracts the same-length pre-event abnormal move where available, making it harder to mistake an existing trend for an event effect.")
 
     st.subheader("Does the type of event, its direction, or how new it was matter?")
     tab1,tab2,tab3=st.tabs(["Type of event + direction","How new was it?","When did it happen?"])
@@ -316,6 +318,12 @@ else:
             sv["Positive rate"]=sv["positive_rate"].map(lambda x:f"{x:.0%}")
             st.dataframe(sv[["market_session","events","observations","Avg abnormal return","Positive rate"]],use_container_width=True,hide_index=True)
         st.caption("Many older sources give a date but not a reliable time. Those events stay marked as unknown rather than being guessed.")
+
+    st.subheader("Historical signal ledger")
+    ledger_cols=["ledger_id","date","source_type","theme","direction","surprise_proxy","market_session","timing_confidence","baseline_date","first_reaction_date","ticker","baseline_price","benchmark"]
+    ledger=filtered[[x for x in ledger_cols if x in filtered.columns]].drop_duplicates().sort_values(["date","ticker"],ascending=[False,True])
+    st.dataframe(ledger,use_container_width=True,hide_index=True)
+    st.caption("Each row freezes the event classification and market baseline used for testing. Later market outcomes are measured against this record rather than being used to rewrite the event label.")
 
     st.subheader("Individual events")
     events_view=filtered[["date","source_type","theme","direction","surprise_proxy","market_session","timing_confidence","summary"]].drop_duplicates().sort_values("date",ascending=False)
