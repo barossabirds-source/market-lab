@@ -50,6 +50,7 @@ def _relative_return(prices, ticker, benchmark, start_pos, end_pos):
     return asset, asset - bench
 
 def trump_event_study(prices, benchmark="SPY", events_path="trump_events.csv", horizons=(1, 3, 5)):
+    """Build a point-in-time event ledger and measure market reactions without rewriting event labels after outcomes are known."""
     events = load_trump_events(events_path)
     rows = []
     for _, ev in events.iterrows():
@@ -74,12 +75,20 @@ def trump_event_study(prices, benchmark="SPY", events_path="trump_events.csv", h
                 "summary": ev["summary"],
                 "ticker": ticker,
                 "source": ev["source"],
+                # Frozen event ledger fields: these describe what was known/classified at the event, not its later outcome.
+                "ledger_id": f'{pd.Timestamp(ev["date"]).date()}|{ev["event_type"]}|{ticker}',
+                "benchmark": benchmark,
+                "baseline_date": prices.index[base],
+                "first_reaction_date": prices.index[first] if first < len(prices) else pd.NaT,
+                "baseline_price": float(prices[ticker].iloc[base]),
+                "benchmark_baseline_price": float(prices[benchmark].iloc[base]),
             }
 
-            # Pre-event drift: 1 and 3 trading sessions ending at the baseline close.
-            for h in (1, 3):
+            # Pre-event/control movement. This helps distinguish an event reaction from a move already underway.
+            for h in (1, 3, 5):
                 pre_start = base - h
-                _, abnormal = _relative_return(prices, ticker, benchmark, pre_start, base)
+                pre_asset, abnormal = _relative_return(prices, ticker, benchmark, pre_start, base)
+                record[f"pre_ret_{h}d"] = pre_asset
                 record[f"pre_abn_{h}d"] = abnormal
 
             # Reaction horizons begin with the first session capable of reflecting the event.
@@ -88,6 +97,9 @@ def trump_event_study(prices, benchmark="SPY", events_path="trump_events.csv", h
                 asset, abnormal = _relative_return(prices, ticker, benchmark, base, end)
                 record[f"ret_{h}d"] = asset
                 record[f"abn_{h}d"] = abnormal
+                # Incremental reaction versus the same-length pre-event abnormal move.
+                pre_control = record.get(f"pre_abn_{h}d", np.nan)
+                record[f"reaction_vs_pre_{h}d"] = abnormal - pre_control if pd.notna(pre_control) else np.nan
             rows.append(record)
     return pd.DataFrame(rows)
 
@@ -106,6 +118,8 @@ def grouped_event_summary(study, group_cols, horizon=1):
         positive_rate=(col, lambda x: float((x > 0).mean())),
         avg_pre_1d=("pre_abn_1d", "mean"),
         avg_pre_3d=("pre_abn_3d", "mean"),
+        avg_pre_5d=("pre_abn_5d", "mean"),
+        avg_reaction_vs_pre=(f"reaction_vs_pre_{horizon}d", "mean"),
     ).reset_index()
     return grouped.sort_values(["avg_abnormal", "events"], ascending=[False, False])
 
