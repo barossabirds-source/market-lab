@@ -1,0 +1,25 @@
+.long-only-block { margin-top: 22px; }
+.long-only-heading { display:flex; align-items:end; justify-content:space-between; gap:18px; margin:20px 0 10px; }
+.long-only-heading h3 { margin:4px 0 0; font-size:1.2rem; }
+.long-only-heading p { margin:0; }
+.long-only-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px; }
+.long-card { border:1px solid #e2e7ef; border-radius:14px; padding:17px; background:#fff; }
+.long-card h3 { margin:4px 0 0; font-size:1.05rem; }
+.long-card p { color:#667085; line-height:1.5; font-size:.86rem; }
+.long-card-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.long-status { font-size:.72rem; font-weight:800; padding:6px 8px; border-radius:999px; white-space:nowrap; }
+.long-status.waiting { background:#f4f5f7; color:#596273; }
+.long-status.support { background:#edf8f1; color:#176b3a; }
+.long-status.fail { background:#fff1f0; color:#9e3027; }
+.long-money { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:14px 0; }
+.long-money div { padding:11px; border-radius:10px; background:#f7f9fc; }
+.long-money span { display:block; font-size:.72rem; color:#7b8496; line-height:1.3; }
+.long-money strong { display:block; margin-top:4px; font-size:1.2rem; color:#172033; }
+.long-stats { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:12px 0; }
+.long-stats div { padding:9px; border-radius:10px; background:#f8fafc; }
+.long-stats dt { font-size:.7rem; color:#7b8496; line-height:1.3; }
+.long-stats dd { margin:4px 0 0; font-size:.9rem; font-weight:800; color:#263246; }
+.long-note { font-size:.8rem !important; }
+.long-gate { padding:10px 11px; border-radius:10px; background:#f3f6fb; color:#40506a !important; }
+@media (max-width:1050px) { .long-only-grid { grid-template-columns:1fr; } }
+@media (max-width:700px) { .long-card-top, .long-only-heading { flex-direction:column; align-items:flex-start; } .long-money, .long-stats { grid-template-columns:1fr; } .long-status { white-space:normal; } }
