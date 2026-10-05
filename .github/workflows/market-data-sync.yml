@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "30 23 * * 1-5"
+  push:
+    branches:
+      - main
+    paths:
+      - "trump_events*.csv"
+      - "scripts/sync_market_data.py"
+      - ".github/workflows/market-data-sync.yml"
 
 permissions:
   contents: read
