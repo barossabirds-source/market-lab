@@ -119,7 +119,7 @@
     const energyHedged = Number.isFinite(findings.energy.avgRelative) ? (c / 2) * findings.energy.avgRelative : NaN;
     const timingPct = findings.timing.total ? Math.round(100 * findings.timing.unknown / findings.timing.total) : 0;
 
-    status.innerHTML = '<strong>Current conclusion:</strong> no pattern in Market Lab currently qualifies as demonstrated arbitrage or as a strategy ready for simulated trading. The tariff pair has a slightly negative average result, the energy result is based on only one formal action, and the formal-action dispersion hypothesis currently runs against the data.';
+    status.innerHTML = '<strong>Current conclusion:</strong> nothing is ready for simulated trading yet. The tariff pair has a slightly negative average result, the energy result is based on one formal action, and the formal-action dispersion idea is not supported by the current sample.';
 
     cards.innerHTML = `
       <article class="exec-card">
@@ -133,7 +133,7 @@
           <div><dt>Best observed</dt><dd>${Number.isFinite(tariffPairBest) ? money(tariffPairBest) : '—'}</dd></div>
           <div><dt>Worst observed</dt><dd>${Number.isFinite(tariffPairWorst) ? money(tariffPairWorst) : '—'}</dd></div>
         </dl>
-        <p class="exec-verdict bad"><strong>Recommendation:</strong> do not promote this rule. It won slightly more often than it lost, but the average outcome was negative.</p>
+        <p class="exec-verdict bad"><strong>Drop for now.</strong> The average result is negative.</p>
       </article>
 
       <article class="exec-card">
@@ -147,7 +147,7 @@
           <div><dt>${money(c/2)} long energy / ${money(c/2)} short broad market</dt><dd>${Number.isFinite(energyHedged) ? money(energyHedged) : '—'}</dd></div>
           <div><dt>Relative return</dt><dd>${Number.isFinite(findings.energy.avgRelative) ? percent(findings.energy.avgRelative) : '—'}</dd></div>
         </dl>
-        <p class="exec-verdict warn"><strong>Recommendation:</strong> interesting, but one formal event is nowhere near enough evidence. Keep collecting before even considering a fixed simulated rule.</p>
+        <p class="exec-verdict warn"><strong>Keep watching.</strong> One formal energy event is not enough evidence.</p>
       </article>
 
       <article class="exec-card">
@@ -159,14 +159,14 @@
           <div><dt>Formal actions</dt><dd>${findings.dispersion.formalN}</dd></div>
           <div><dt>Remarks/other</dt><dd>${findings.dispersion.otherN}</dd></div>
         </dl>
-        <p class="exec-verdict bad"><strong>Recommendation:</strong> this does not currently support the hypothesis. It also cannot be converted into an A$ profit figure until a pre-event rule says which market area to buy and which to sell.</p>
+        <p class="exec-verdict bad"><strong>No trade rule yet.</strong> The current result does not support the idea.</p>
       </article>`;
 
     recommendations.innerHTML = `
-      <article class="recommendation"><strong>1. No proven arbitrage yet.</strong><p>Market Lab currently measures daily relative moves. True arbitrage requires a price mismatch that can be traded at the same time with a defined convergence mechanism. These results are historical relative-value scenarios, not guaranteed profit.</p></article>
-      <article class="recommendation"><strong>2. Improve event timing next.</strong><p>${findings.timing.unknown} of ${findings.timing.total} events (${timingPct}%) still have unknown market timing. That weakens one-day conclusions because some measured movement may have happened before the announcement.</p></article>
-      <article class="recommendation"><strong>3. Keep energy as a research lead, not a strategy.</strong><p>The observed energy result is economically noticeable, but the formal-action sample is only ${findings.energy.n}. Build the sample first, then test on later unseen events.</p></article>
-      <article class="recommendation"><strong>4. Costs matter at A$100 scale.</strong><p>All figures above are gross and ignore brokerage, bid/ask spread, short-borrow costs, foreign-exchange conversion, tax and slippage. With small positions, those costs can easily erase outcomes measured in cents.</p></article>`;
+      <article class="recommendation"><strong>1. No proven arbitrage yet.</strong><p>Nothing is ready to trade.</p></article>
+      <article class="recommendation"><strong>2. Improve event timing.</strong><p>${findings.timing.unknown} of ${findings.timing.total} events (${timingPct}%) still have unknown trading time.</p></article>
+      <article class="recommendation"><strong>3. Keep watching energy.</strong><p>The result is interesting, but the sample is only ${findings.energy.n} formal event${findings.energy.n === 1 ? '' : 's'}.</p></article>
+      <article class="recommendation"><strong>4. Include trading costs.</strong><p>Small gross gains can disappear after fees, spreads and currency conversion.</p></article>`;
   }
 
   async function initialiseExecutive() {
