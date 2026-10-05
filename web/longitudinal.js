@@ -14,8 +14,21 @@
     return Number.isFinite(n) && n > 0 ? n : 100;
   }
 
+  function cost() {
+    const input = document.getElementById('costInput');
+    const n = Number(input?.value || 0);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
   function eventMap() {
     return new Map((state.events || []).map(e => [String(e.id), e]));
+  }
+
+  function termOf(value) {
+    const y = yearOf(value);
+    if (y >= 2017 && y <= 2020) return 'first';
+    if (y >= 2025) return 'second';
+    return 'other';
   }
 
   function isTariffTrialEvent(event) {
@@ -29,8 +42,8 @@
     if (!state.connected || !state.events?.length) return null;
 
     const [oneDayRows, pairRows] = await Promise.all([
-      supabaseGet('event_impacts', 'select=event_id,event_date,symbol,asset_group,abnormal_return&horizon=eq.1d&symbol=neq.SPY&limit=1000'),
-      supabaseGet('event_impacts', 'select=event_id,event_date,symbol,asset_return&horizon=eq.3d&symbol=in.(XLI,QQQ)&limit=250'),
+      supabaseGet('event_impacts', 'select=event_id,event_date,symbol,asset_group,abnormal_return&horizon=eq.1d&symbol=neq.SPY&limit=1600'),
+      supabaseGet('event_impacts', 'select=event_id,event_date,symbol,asset_return&horizon=eq.3d&symbol=in.(XLI,QQQ)&limit=500'),
     ]);
 
     const events = eventMap();
@@ -47,28 +60,36 @@
     });
 
     const byYear = new Map();
+    const byTerm = new Map();
     eventStats.forEach((item, id) => {
       if (!item.values.length) return;
       const yr = yearOf(item.date);
+      const term = termOf(item.date);
       const leader = [...item.leaders].sort((a,b) => b.value - a.value)[0];
       const dispersion = Math.max(...item.values) - Math.min(...item.values);
+
       const y = byYear.get(yr) || { eventIds: new Set(), dispersions: [], leaders: new Map() };
       y.eventIds.add(id);
       y.dispersions.push(dispersion);
       if (leader?.group) y.leaders.set(leader.group, (y.leaders.get(leader.group) || 0) + 1);
       byYear.set(yr, y);
+
+      if (term !== 'other') {
+        const t = byTerm.get(term) || { eventIds: new Set(), dispersions: [], leaders: new Map() };
+        t.eventIds.add(id);
+        t.dispersions.push(dispersion);
+        if (leader?.group) t.leaders.set(leader.group, (t.leaders.get(leader.group) || 0) + 1);
+        byTerm.set(term, t);
+      }
     });
 
-    const yearly = [...byYear.entries()].sort((a,b) => a[0] - b[0]).map(([year, data]) => {
-      const leaderList = [...data.leaders.entries()].sort((a,b) => b[1] - a[1]);
-      return {
-        year,
-        events: data.eventIds.size,
-        avgDispersion: mean(data.dispersions),
-        leaders: leaderList,
-        topLeader: leaderList[0] || null,
-      };
-    });
+    const summarise = (data) => {
+      if (!data) return null;
+      const leaders = [...data.leaders.entries()].sort((a,b) => b[1] - a[1]);
+      return { events: data.eventIds.size, avgDispersion: mean(data.dispersions), leaders, topLeader: leaders[0] || null };
+    };
+
+    const yearly = [...byYear.entries()].sort((a,b) => a[0] - b[0]).map(([year, data]) => ({ year, ...summarise(data) }));
 
     const pairByEvent = new Map();
     pairRows.forEach(row => {
@@ -82,7 +103,7 @@
 
     const pairEvents = [...pairByEvent.values()]
       .filter(x => Number.isFinite(x.XLI) && Number.isFinite(x.QQQ))
-      .map(x => ({ ...x, spread: x.XLI - x.QQQ }))
+      .map(x => ({ ...x, spread: x.XLI - x.QQQ, term: termOf(x.date) }))
       .sort((a,b) => String(a.date).localeCompare(String(b.date)));
 
     pairEvents.forEach((row, index) => {
@@ -99,12 +120,19 @@
     });
 
     const pairYears = new Map();
+    const pairTerms = new Map();
     pairEvents.forEach(row => {
       const yr = yearOf(row.date);
-      const arr = pairYears.get(yr) || [];
-      arr.push(row.spread);
-      pairYears.set(yr, arr);
+      const yearArr = pairYears.get(yr) || [];
+      yearArr.push(row.spread);
+      pairYears.set(yr, yearArr);
+      if (row.term !== 'other') {
+        const termArr = pairTerms.get(row.term) || [];
+        termArr.push(row.spread);
+        pairTerms.set(row.term, termArr);
+      }
     });
+
     const pairYearly = [...pairYears.entries()].sort((a,b) => a[0] - b[0]).map(([year, spreads]) => ({
       year,
       n: spreads.length,
@@ -112,12 +140,20 @@
       winRate: spreads.filter(x => x > 0).length / spreads.length,
     }));
 
+    const termStats = {
+      first: summarise(byTerm.get('first')),
+      second: summarise(byTerm.get('second')),
+      pairFirst: pairTerms.has('first') ? { n: pairTerms.get('first').length, avgSpread: mean(pairTerms.get('first')), winRate: pairTerms.get('first').filter(x => x > 0).length / pairTerms.get('first').length } : null,
+      pairSecond: pairTerms.has('second') ? { n: pairTerms.get('second').length, avgSpread: mean(pairTerms.get('second')), winRate: pairTerms.get('second').filter(x => x > 0).length / pairTerms.get('second').length } : null,
+    };
+
     const eventDates = state.events.map(e => e.event_date).filter(Boolean).sort();
 
     return {
       yearly,
       pairEvents,
       pairYearly,
+      terms: termStats,
       coverage: {
         events: state.events.length,
         firstEvent: eventDates[0],
@@ -140,31 +176,31 @@
     }
 
     const c = capital();
+    const tradeCost = cost();
     const years = trendData.yearly;
-    const firstYear = years[0];
     const latestYear = years[years.length - 1];
-    const pairYears = trendData.pairYearly;
-    const firstPairYear = pairYears[0];
-    const latestPairYear = pairYears[pairYears.length - 1];
     const latestPairEvent = trendData.pairEvents[trendData.pairEvents.length - 1];
+    const firstTerm = trendData.terms.first;
+    const secondTerm = trendData.terms.second;
+    const firstPair = trendData.terms.pairFirst;
+    const secondPair = trendData.terms.pairSecond;
 
-    const dispersionChange = firstYear && latestYear && firstYear.year !== latestYear.year
-      ? latestYear.avgDispersion - firstYear.avgDispersion
+    const firstPairNet = firstPair ? (c / 2) * firstPair.avgSpread - tradeCost : NaN;
+    const secondPairNet = secondPair ? (c / 2) * secondPair.avgSpread - tradeCost : NaN;
+    const latestRollingNet = latestPairEvent && Number.isFinite(latestPairEvent.rollingSixMonthSpread)
+      ? (c / 2) * latestPairEvent.rollingSixMonthSpread - tradeCost
       : NaN;
 
-    const pairYearText = firstPairYear && latestPairYear && firstPairYear.year !== latestPairYear.year
-      ? `${firstPairYear.year}: ${money((c/2) * firstPairYear.avgSpread)} average per A$${c.toFixed(0)} example; ${latestPairYear.year}: ${money((c/2) * latestPairYear.avgSpread)}.`
-      : 'More history is needed before comparing the tariff pair across years.';
-
-    summary.innerHTML = firstYear && latestYear && firstYear.year !== latestYear.year
-      ? `<strong>What is changing:</strong> average one-day sector dispersion fell from ${pct(firstYear.avgDispersion)} in ${firstYear.year} to ${pct(latestYear.avgDispersion)} in ${latestYear.year}. The qualified tariff pair also weakened in the later year. This is consistent with a fading or changing market response, but it does not prove that repeated announcements are losing impact.`
-      : '<strong>What is changing:</strong> the dataset is still too short for a strong year-to-year conclusion.';
+    if (firstTerm && secondTerm) {
+      const direction = secondTerm.avgDispersion < firstTerm.avgDispersion ? 'smaller' : 'larger';
+      summary.innerHTML = `<strong>First term vs second term:</strong> the average one-day gap between the strongest and weakest market areas is ${pct(firstTerm.avgDispersion)} across ${firstTerm.events} first-term events and ${pct(secondTerm.avgDispersion)} across ${secondTerm.events} second-term events. The later response is ${direction}. The tariff-pair result is also shown separately below. This can reveal a changing market response, but it is not proof of a repeatable profit opportunity.`;
+    } else {
+      summary.innerHTML = '<strong>What is changing:</strong> more historical events are being added before comparing the first and second Trump terms.';
+    }
 
     const latestLeader = latestYear?.topLeader;
-    const earlierLeader = firstYear?.topLeader;
-    const latestRollingProfit = latestPairEvent && Number.isFinite(latestPairEvent.rollingSixMonthSpread)
-      ? (c / 2) * latestPairEvent.rollingSixMonthSpread
-      : NaN;
+    const firstLeader = firstTerm?.topLeader;
+    const secondLeader = secondTerm?.topLeader;
 
     cards.innerHTML = `
       <article class="trend-card">
@@ -173,31 +209,42 @@
         <p>${dateTextLong(trendData.coverage.firstEvent)} to ${dateTextLong(trendData.coverage.lastEvent)}.</p>
       </article>
       <article class="trend-card">
-        <p class="eyebrow">ONE-DAY MARKET GAP</p>
-        <p class="trend-kpi">${latestYear ? pct(latestYear.avgDispersion) : '—'}</p>
-        <p>${latestYear ? `${latestYear.year} average across ${latestYear.events} events.` : 'No yearly result yet.'}${Number.isFinite(dispersionChange) ? ` Change from ${firstYear.year}: ${signedPercent(dispersionChange)}.` : ''}</p>
+        <p class="eyebrow">FIRST TERM MARKET GAP</p>
+        <p class="trend-kpi">${firstTerm ? pct(firstTerm.avgDispersion) : '—'}</p>
+        <p>${firstTerm ? `${firstTerm.events} events from 2017–2020.` : 'Backfill still loading.'}</p>
       </article>
       <article class="trend-card">
-        <p class="eyebrow">TARIFF PAIR BY YEAR</p>
-        <p class="trend-kpi">${latestPairYear ? money((c/2) * latestPairYear.avgSpread) : '—'}</p>
-        <p>${pairYearText}</p>
+        <p class="eyebrow">SECOND TERM MARKET GAP</p>
+        <p class="trend-kpi">${secondTerm ? pct(secondTerm.avgDispersion) : '—'}</p>
+        <p>${secondTerm ? `${secondTerm.events} events from 2025 onward.` : 'No second-term data.'}</p>
+      </article>
+      <article class="trend-card">
+        <p class="eyebrow">FIRST TERM TARIFF PAIR</p>
+        <p class="trend-kpi">${Number.isFinite(firstPairNet) ? money(firstPairNet) : '—'}</p>
+        <p>${firstPair ? `Average net result per ${money(c)} example after ${money(tradeCost)} entered cost; ${firstPair.n} events, ${Math.round(firstPair.winRate*100)}% positive.` : 'No qualifying events yet.'}</p>
+      </article>
+      <article class="trend-card">
+        <p class="eyebrow">SECOND TERM TARIFF PAIR</p>
+        <p class="trend-kpi">${Number.isFinite(secondPairNet) ? money(secondPairNet) : '—'}</p>
+        <p>${secondPair ? `Average net result per ${money(c)} example after ${money(tradeCost)} entered cost; ${secondPair.n} events, ${Math.round(secondPair.winRate*100)}% positive.` : 'No qualifying events yet.'}</p>
       </article>
       <article class="trend-card">
         <p class="eyebrow">LATEST 6-MONTH TARIFF AVERAGE</p>
-        <p class="trend-kpi">${Number.isFinite(latestRollingProfit) ? money(latestRollingProfit) : '—'}</p>
-        <p>${latestPairEvent ? `${latestPairEvent.rollingSixMonthN} qualifying events in the latest six-month window.` : 'No qualifying tariff events.'}</p>
+        <p class="trend-kpi">${Number.isFinite(latestRollingNet) ? money(latestRollingNet) : '—'}</p>
+        <p>${latestPairEvent ? `${latestPairEvent.rollingSixMonthN} qualifying events in the latest six-month window, after entered cost.` : 'No qualifying tariff events.'}</p>
       </article>
       <article class="trend-card">
         <p class="eyebrow">SECTOR LEADERSHIP</p>
         <p class="trend-kpi">${latestLeader ? latestLeader[0] : '—'}</p>
-        <p>${latestYear && latestLeader ? `${latestLeader[1]} of ${latestYear.events} events led in ${latestYear.year}.` : ''}${firstYear && earlierLeader && firstYear.year !== latestYear?.year ? ` In ${firstYear.year}, ${earlierLeader[0]} led ${earlierLeader[1]} times.` : ''}</p>
+        <p>${secondLeader ? `Second term: ${secondLeader[0]} led ${secondLeader[1]} times.` : ''}${firstLeader ? ` First term: ${firstLeader[0]} led ${firstLeader[1]} times.` : ''}</p>
       </article>`;
 
     let running = 0;
     rows.innerHTML = trendData.pairEvents.map(row => {
-      const result = (c / 2) * row.spread;
+      const gross = (c / 2) * row.spread;
+      const result = gross - tradeCost;
       running += result;
-      const rolling = (c / 2) * row.rollingSixMonthSpread;
+      const rolling = (c / 2) * row.rollingSixMonthSpread - tradeCost;
       const event = row.event || {};
       return `<tr>
         <td>${dateTextLong(row.date)}</td>
@@ -223,6 +270,7 @@
       summary.innerHTML = '<strong>Longitudinal view unavailable:</strong> the trend calculation could not be loaded.';
     }
     document.getElementById('capitalInput')?.addEventListener('input', renderLongitudinal);
+    document.getElementById('costInput')?.addEventListener('input', renderLongitudinal);
   }
 
   window.addEventListener('load', initialiseLongitudinal);
