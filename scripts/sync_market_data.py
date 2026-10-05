@@ -125,6 +125,7 @@ def load_events() -> list[dict[str, Any]]:
             "source_url": source_url or None,
             "candidate_symbols": symbols,
             "theme_occurrence_number": occurrence,
+            # Frequency-based proxy only: repeated themes receive a lower novelty value.
             "novelty_proxy": round(1.0 / math.sqrt(occurrence), 6),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         })
@@ -227,6 +228,88 @@ def impact_rows(events: list[dict[str, Any]], event_ids: dict[str, str], close: 
     return rows
 
 
+def update_research_trials(events: list[dict[str, Any]], impacts: list[dict[str, Any]]) -> None:
+    """Update only pre-registered summaries; never invent a trading rule from the outcome."""
+    if not impacts:
+        return
+    event_by_id: dict[str, dict[str, Any]] = {}
+    stored = rest("GET", "events", params="select=id,event_key&limit=1000")
+    key_to_event = {e["event_key"]: e for e in events}
+    for row in stored:
+        if row["event_key"] in key_to_event:
+            event_by_id[row["id"]] = key_to_event[row["event_key"]]
+
+    df = pd.DataFrame(impacts)
+    if df.empty:
+        return
+
+    def patch_trial(trial_key: str, count: int, avg: float | None, hit: float | None, summary: str, status: str = "testing") -> None:
+        rest("PATCH", "research_trials", params=f"trial_key=eq.{trial_key}", rows={
+            "event_count": count, "average_effect": avg, "hit_rate": hit,
+            "result_summary": summary, "status": status,
+        }, prefer="return=minimal")
+
+    # Trial 1: high-surprise escalating trade/tariff events, XLI versus QQQ over 3 days.
+    trade_ids = []
+    for eid, ev in event_by_id.items():
+        theme = ev["policy_theme"]
+        trade_like = "tariff" in theme or theme in {"autos_trade", "china_trade", "canada_trade", "semiconductors"}
+        if trade_like and ev["direction"] == "escalation" and ev["surprise_level"] == "high":
+            trade_ids.append(eid)
+    x = df[(df.event_id.isin(trade_ids)) & (df.horizon == "3d") & (df.symbol.isin(["XLI", "QQQ"]))]
+    piv = x.pivot_table(index="event_id", columns="symbol", values="abnormal_return", aggfunc="first").dropna() if not x.empty else pd.DataFrame()
+    effects = (piv["XLI"] - piv["QQQ"]) if {"XLI", "QQQ"}.issubset(piv.columns) else pd.Series(dtype=float)
+    count = int(len(effects))
+    avg = float(effects.mean()) if count else None
+    hit = float((effects > 0).mean()) if count else None
+    if count < 3:
+        summary = f"Only {count} qualifying events are measurable so far. Keep collecting data; this is too small a sample for a strategy conclusion."
+        status = "registered"
+    else:
+        summary = f"Across {count} qualifying events, industrials outperformed large technology by {avg*100:.2f} percentage points on average over 3 trading days; this occurred in {hit*100:.0f}% of events."
+        status = "testing"
+    patch_trial("tariff-industrials-vs-tech-3d", count, avg, hit, summary, status)
+
+    # Trial 2: formal energy-support actions versus energy remarks, using XLE 5-day relative returns.
+    energy_rows = []
+    for eid, ev in event_by_id.items():
+        if "energy" in ev["policy_theme"]:
+            hit_rows = df[(df.event_id == eid) & (df.horizon == "5d") & (df.symbol == "XLE")]
+            if not hit_rows.empty and pd.notna(hit_rows.iloc[0]["abnormal_return"]):
+                group = "formal" if ev["source_type"] == "formal_action" else "remarks"
+                energy_rows.append((group, float(hit_rows.iloc[0]["abnormal_return"])))
+    formal = [v for g, v in energy_rows if g == "formal"]
+    remarks = [v for g, v in energy_rows if g == "remarks"]
+    count = len(energy_rows)
+    if formal and remarks:
+        diff = float(sum(formal)/len(formal) - sum(remarks)/len(remarks))
+        summary = f"Formal energy actions are currently {diff*100:+.2f} percentage points different from energy remarks on average over 5 trading days. Formal n={len(formal)}, remarks n={len(remarks)}; the sample remains exploratory."
+        hit = float(diff > 0)
+        status = "testing" if len(formal) >= 2 and len(remarks) >= 2 else "registered"
+        patch_trial("energy-formal-vs-remarks-5d", count, diff, hit, summary, status)
+    else:
+        patch_trial("energy-formal-vs-remarks-5d", count, None, None, f"Only {count} usable energy events are available and both comparison groups are not yet represented.", "registered")
+
+    # Trial 3: cross-market one-day dispersion after formal actions versus remarks/interviews.
+    d1 = df[(df.horizon == "1d") & (df.symbol != BENCHMARK)].dropna(subset=["abnormal_return"]).copy()
+    dispersions = d1.groupby("event_id")["abnormal_return"].agg(lambda v: float(v.max() - v.min())) if not d1.empty else pd.Series(dtype=float)
+    formal_disp, remarks_disp = [], []
+    for eid, val in dispersions.items():
+        ev = event_by_id.get(eid)
+        if not ev:
+            continue
+        (formal_disp if ev["source_type"] == "formal_action" else remarks_disp).append(float(val))
+    count = len(formal_disp) + len(remarks_disp)
+    if formal_disp and remarks_disp:
+        diff = float(sum(formal_disp)/len(formal_disp) - sum(remarks_disp)/len(remarks_disp))
+        summary = f"Formal actions currently show {diff*100:+.2f} percentage points more one-day cross-market dispersion than remarks/interviews on average. Formal n={len(formal_disp)}, remarks n={len(remarks_disp)}."
+        hit = float(diff > 0)
+        status = "testing" if len(formal_disp) >= 5 and len(remarks_disp) >= 5 else "registered"
+        patch_trial("formal-action-dispersion-1d", count, diff, hit, summary, status)
+    else:
+        patch_trial("formal-action-dispersion-1d", count, None, None, f"Only {count} usable events are available and both comparison groups are not yet represented.", "registered")
+
+
 def main() -> int:
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("SUPABASE_URL and SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY) are required.", file=sys.stderr)
@@ -253,6 +336,8 @@ def main() -> int:
         impacts = impact_rows(events, event_ids, close)
         for batch in chunks(impacts):
             rest("POST", "event_impacts", params="on_conflict=event_id,symbol,horizon", rows=batch, prefer="resolution=merge-duplicates,return=minimal")
+
+        update_research_trials(events, impacts)
 
         finished = datetime.now(timezone.utc).isoformat()
         rest("PATCH", "sync_runs", params=f"id=eq.{run_id}", rows={
