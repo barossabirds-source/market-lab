@@ -1,9 +1,10 @@
 """Refine automatically collected historical discoveries.
 
-The raw backfill can contain multiple documents signed on the same day and overlapping
-holding windows. Counting each as an independent event can greatly exaggerate apparent
-sample size. This pass collapses same-day theme clusters and then keeps non-overlapping
-observations for each holding period before calculating exploratory summaries.
+The raw backfill can contain multiple documents signed on the same day, overlapping
+holding windows, and unrelated funds. Counting those as independent evidence can greatly
+exaggerate apparent sample size. This pass collapses same-day theme clusters, keeps
+non-overlapping observations, and only tests funds that were defined for that policy theme
+before returns were inspected.
 """
 from __future__ import annotations
 
@@ -23,6 +24,22 @@ SOURCE_DATASET = "federal_register_clustered_nonoverlap"
 # Conservative calendar gaps used to avoid counting substantially overlapping return windows
 # as separate observations. They are deliberately longer than the nominal trading-day hold.
 MIN_GAP_DAYS = {"1d": 2, "3d": 5, "5d": 8, "20d": 30}
+
+# Predefined market areas for each policy theme. This prevents the discovery engine from
+# testing every fund against every headline and then keeping accidental winners.
+THEME_SYMBOLS: dict[str, set[str]] = {
+    "china_trade": {"SOXX", "SMH", "QQQ", "XLK", "EEM", "XLI"},
+    "trade_tariffs": {"XLI", "XLB", "SOXX", "QQQ", "XLY", "IWM", "EEM"},
+    "energy": {"XLE", "XLI", "XLB", "XLU"},
+    "defense": {"ITA", "XLI"},
+    "financial_regulation": {"XLF", "KRE", "QQQ"},
+    "technology_semiconductors": {"SOXX", "SMH", "QQQ", "XLK"},
+    "healthcare_pharma": {"XLV", "IBB", "XBI"},
+    "infrastructure_manufacturing": {"XLI", "XLB", "IWM"},
+    "sanctions_geopolitics": {"EEM", "XLE", "ITA", "QQQ"},
+    "tax_fiscal": {"SPY", "XLF", "IWM", "XLI"},
+    "labor_immigration": {"IWM", "XLY", "XLI"},
+}
 
 
 def headers() -> dict[str, str]:
@@ -76,8 +93,6 @@ def non_overlapping(rows: list[dict[str, Any]], horizon: str) -> list[dict[str, 
 
     collapsed: list[dict[str, Any]] = []
     for d, same_day in sorted(by_date.items()):
-        # Market returns are identical for same date/symbol/horizon. If a provider ever
-        # differs slightly, averaging prevents arbitrary document ordering from deciding.
         vals = [float(r["asset_return"]) for r in same_day if r.get("asset_return") is not None]
         abn = [float(r["abnormal_return"]) for r in same_day if r.get("abnormal_return") is not None]
         if not vals:
@@ -150,18 +165,23 @@ def main() -> int:
         "candidate_id,event_date,symbol,asset_name,asset_group,horizon,asset_return,abnormal_return",
     )
 
-    # Attach classifications and ignore obvious substring artefacts from the first-pass rules.
     enriched: list[dict[str, Any]] = []
     for row in impacts:
         meta = cmeta.get(str(row.get("candidate_id")))
         if not meta:
             continue
+        theme = str(meta.get("policy_theme") or "unknown")
+        symbol = str(row.get("symbol") or "")
+        # Only test funds mapped to this theme before outcomes were inspected.
+        if symbol not in THEME_SYMBOLS.get(theme, set()):
+            continue
         title = str(meta.get("title") or "").lower()
         basis = str(meta.get("classification_basis") or "").lower()
+        # Correct the known substring artefact where 'mining' can appear inside 'examining'.
         if "theme energy: mining" in basis and " mining " not in f" {title} ":
             continue
         item = dict(row)
-        item["policy_theme"] = meta.get("policy_theme")
+        item["policy_theme"] = theme
         item["direction_guess"] = meta.get("direction_guess") or "unknown"
         enriched.append(item)
 
@@ -185,12 +205,18 @@ def main() -> int:
         if s:
             summaries.append(s)
 
+    # These rows are fully generated from the current candidate set, so clear only this
+    # generated slice before writing the revised summaries. Curated trials are untouched.
+    rest("DELETE", "historical_discoveries", params=f"source_dataset=eq.{SOURCE_DATASET}", prefer="return=minimal")
     for batch in chunks(summaries):
         rest(
             "POST", "historical_discoveries", params="on_conflict=discovery_key", rows=batch,
             prefer="resolution=merge-duplicates,return=minimal",
         )
-    print(f"Refined {len(summaries)} historical summaries using same-day clustering and non-overlapping windows.")
+    print(
+        f"Refined {len(summaries)} historical summaries using predefined theme funds, "
+        "same-day clustering and non-overlapping windows."
+    )
     return 0
 
 
