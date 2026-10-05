@@ -38,10 +38,11 @@
   async function buildFindings() {
     if (!state.connected || !state.events?.length) return null;
 
-    const [pairRows, energyRows, oneDayRows] = await Promise.all([
+    const [pairRows, energyRows, oneDayRows, semiRows] = await Promise.all([
       supabaseGet('event_impacts', 'select=event_id,symbol,asset_return,benchmark_return,abnormal_return&horizon=eq.3d&symbol=in.(XLI,QQQ)&limit=500'),
       supabaseGet('event_impacts', 'select=event_id,symbol,asset_return,benchmark_return,abnormal_return&horizon=eq.5d&symbol=eq.XLE&limit=200'),
-      supabaseGet('event_impacts', 'select=event_id,symbol,abnormal_return&horizon=eq.1d&symbol=neq.SPY&limit=1500'),
+      supabaseGet('event_impacts', 'select=event_id,symbol,abnormal_return&horizon=eq.1d&symbol=neq.SPY&limit=1600'),
+      supabaseGet('event_impacts', 'select=event_id,symbol,asset_return&horizon=eq.5d&symbol=eq.SOXX&limit=200'),
     ]);
 
     const events = eventMap();
@@ -65,6 +66,15 @@
     const formalEnergyAssetReturns = formalEnergy.map(x => Number(x.asset_return)).filter(Number.isFinite);
     const formalEnergyRelativeReturns = formalEnergy.map(x => Number(x.asset_return) - Number(x.benchmark_return)).filter(Number.isFinite);
 
+    const semiDiscovery = semiRows.filter(row => {
+      const event = events.get(String(row.event_id));
+      return event && String(event.policy_theme || '').toLowerCase() === 'china_trade' && String(event.direction || '').toLowerCase() === 'deescalation';
+    });
+    const semiReturns = semiDiscovery.map(x => Number(x.asset_return)).filter(Number.isFinite);
+    const semiFutureTrial = (state.trials || []).find(t => String(t.trial_key || '') === 'china-deescalation-semiconductors-5d-future');
+    const semiFutureAvg = semiFutureTrial?.average_effect === null || semiFutureTrial?.average_effect === undefined ? NaN : Number(semiFutureTrial.average_effect);
+    const semiFutureN = Number(semiFutureTrial?.event_count || 0);
+
     const dispersionByEvent = new Map();
     oneDayRows.forEach(row => {
       const value = Number(row.abnormal_return);
@@ -85,10 +95,6 @@
     });
 
     const unknownTiming = state.events.filter(e => String(e.market_session || 'unknown').toLowerCase() === 'unknown').length;
-    const tariffTrial = (state.trials || []).find(t => String(t.trial_key || '').includes('tariff-industrials-vs-tech'));
-    const outOfSample = tariffTrial?.out_of_sample_effect === null || tariffTrial?.out_of_sample_effect === undefined
-      ? NaN
-      : Number(tariffTrial.out_of_sample_effect);
 
     return {
       tariff: {
@@ -97,12 +103,20 @@
         min: min(tariffSpreads),
         max: max(tariffSpreads),
         winRate: tariffSpreads.length ? tariffSpreads.filter(x => x > 0).length / tariffSpreads.length : NaN,
-        outOfSample,
       },
       energy: {
         n: formalEnergyAssetReturns.length,
         avgAsset: mean(formalEnergyAssetReturns),
         avgRelative: mean(formalEnergyRelativeReturns),
+      },
+      semiLead: {
+        n: semiReturns.length,
+        avg: mean(semiReturns),
+        min: min(semiReturns),
+        max: max(semiReturns),
+        winRate: semiReturns.length ? semiReturns.filter(x => x > 0).length / semiReturns.length : NaN,
+        futureN: semiFutureN,
+        futureAvg: semiFutureAvg,
       },
       dispersion: {
         formalN: formalDispersion.length,
@@ -114,15 +128,18 @@
     };
   }
 
-  function renderReadiness(c, cost, tariffPairAvg) {
+  function renderReadiness(c, cost) {
     const box = document.getElementById('capitalReadiness');
     if (!box || !findings) return;
 
-    const enoughEvents = findings.tariff.n >= 20;
-    const grossPositive = Number.isFinite(findings.tariff.avg) && findings.tariff.avg > 0;
-    const netPositive = Number.isFinite(tariffPairAvg) && tariffPairAvg - cost > 0;
-    const unseenPassed = Number.isFinite(findings.tariff.outOfSample) && findings.tariff.outOfSample > 0;
-    const ready = enoughEvents && grossPositive && netPositive && unseenPassed;
+    const lead = findings.semiLead;
+    const historicalNet = Number.isFinite(lead.avg) ? c * lead.avg - cost : NaN;
+    const futureNet = Number.isFinite(lead.futureAvg) ? c * lead.futureAvg - cost : NaN;
+    const enoughTotal = (lead.n + lead.futureN) >= 20;
+    const historicalPositive = Number.isFinite(historicalNet) && historicalNet > 0;
+    const enoughFuture = lead.futureN >= 5;
+    const futurePositive = Number.isFinite(futureNet) && futureNet > 0;
+    const ready = enoughTotal && historicalPositive && enoughFuture && futurePositive;
 
     const row = (ok, label) => `<div class="readiness-item ${ok ? 'pass' : 'wait'}"><span>${ok ? '✓' : '•'}</span><strong>${label}</strong></div>`;
     box.innerHTML = `
@@ -133,14 +150,14 @@
         </div>
         <span class="readiness-pill ${ready ? 'pass' : 'wait'}">${ready ? 'SIMULATION ELIGIBLE' : 'DO NOT USE FAMILY CAPITAL YET'}</span>
       </div>
-      <p>Market Lab is being built to protect a small starting balance. Long-only ideas are the first candidates for eventual simulation; short selling and leverage stay research-only.</p>
+      <p>The long-only semiconductor lead is the first candidate being tracked for a modest starting balance. It was discovered from old data, so it must prove itself on future events before it can be treated seriously.</p>
       <div class="readiness-grid">
-        ${row(enoughEvents, `At least 20 qualifying events (${findings.tariff.n} now)`)}
-        ${row(grossPositive, 'Positive average historical result')}
-        ${row(netPositive, `Positive after your entered cost of ${money(cost)}`)}
-        ${row(unseenPassed, 'Positive test on later unseen data')}
+        ${row(enoughTotal, `At least 20 total qualifying events (${lead.n + lead.futureN} now)`)}
+        ${row(historicalPositive, `Historical average remains positive after ${money(cost)} entered cost`)}
+        ${row(enoughFuture, `At least 5 future unseen events (${lead.futureN} now)`)}
+        ${row(futurePositive, 'Future unseen average is positive after entered cost')}
       </div>
-      <p class="readiness-note">This is a research gate, not a recommendation to invest. The app will keep showing gross and cost-adjusted historical examples before any real-money decision is considered.</p>`;
+      <p class="readiness-note">This is a research gate, not a recommendation to invest. Long-only ideas are prioritised; short selling and leverage remain research-only.</p>`;
   }
 
   function renderExecutive() {
@@ -169,13 +186,38 @@
     const energyLongNet = Number.isFinite(energyLong) ? energyLong - cost : NaN;
     const energyHedged = Number.isFinite(findings.energy.avgRelative) ? (c / 2) * findings.energy.avgRelative : NaN;
     const energyBreakEven = breakEvenCapital(findings.energy.avgAsset, cost);
+
+    const semiGross = Number.isFinite(findings.semiLead.avg) ? c * findings.semiLead.avg : NaN;
+    const semiNet = Number.isFinite(semiGross) ? semiGross - cost : NaN;
+    const semiBest = Number.isFinite(findings.semiLead.max) ? c * findings.semiLead.max : NaN;
+    const semiWorst = Number.isFinite(findings.semiLead.min) ? c * findings.semiLead.min : NaN;
+    const semiBreakEven = breakEvenCapital(findings.semiLead.avg, cost);
+
     const timingPct = findings.timing.total ? Math.round(100 * findings.timing.unknown / findings.timing.total) : 0;
 
-    status.innerHTML = '<strong>Current conclusion:</strong> nothing is ready for real-money use. Market Lab is expanding the history first, measuring costs explicitly, and keeping live trading outside the system.';
+    status.innerHTML = '<strong>Current conclusion:</strong> nothing is ready for real-money use. The historical backfill has identified one long-only research lead worth freezing and testing on future events, while the tariff pair remains unattractive.';
 
-    renderReadiness(c, cost, tariffPairAvg);
+    renderReadiness(c, cost);
 
     cards.innerHTML = `
+      <article class="exec-card">
+        <p class="eyebrow">LONG-ONLY RESEARCH LEAD · 5 TRADING DAYS</p>
+        <h3>China trade de-escalation → semiconductors</h3>
+        <p class="exec-lead">${Number.isFinite(semiGross) ? money(semiGross) : '—'}</p>
+        <p>Historical discovery average from putting <strong>${money(c)}</strong> into SOXX after qualifying China-trade de-escalation events. This pattern was found by looking backwards, so it is not proof.</p>
+        <dl class="exec-stats">
+          <div><dt>Historical discovery events</dt><dd>${findings.semiLead.n}</dd></div>
+          <div><dt>Positive historical examples</dt><dd>${Number.isFinite(findings.semiLead.winRate) ? `${Math.round(findings.semiLead.winRate*100)}%` : '—'}</dd></div>
+          <div><dt>Net after entered cost</dt><dd>${Number.isFinite(semiNet) ? money(semiNet) : '—'}</dd></div>
+          <div><dt>Break-even capital at historical average</dt><dd>${Number.isFinite(semiBreakEven) ? money(semiBreakEven) : (cost > 0 ? 'Not available' : 'Enter a cost to calculate')}</dd></div>
+          <div><dt>Best historical example</dt><dd>${Number.isFinite(semiBest) ? money(semiBest) : '—'}</dd></div>
+          <div><dt>Worst historical example</dt><dd>${Number.isFinite(semiWorst) ? money(semiWorst) : '—'}</dd></div>
+          <div><dt>Future unseen events measured</dt><dd>${findings.semiLead.futureN}</dd></div>
+          <div><dt>Future unseen average</dt><dd>${Number.isFinite(findings.semiLead.futureAvg) ? percent(findings.semiLead.futureAvg) : 'Waiting'}</dd></div>
+        </dl>
+        <p class="exec-verdict warn"><strong>Watch only.</strong> The rule is now frozen. Future events, not the old data, will decide whether it survives.</p>
+      </article>
+
       <article class="exec-card">
         <p class="eyebrow">TARIFF ESCALATION · 3 TRADING DAYS</p>
         <h3>Industrials long / technology short</h3>
@@ -221,9 +263,9 @@
       </article>`;
 
     recommendations.innerHTML = `
-      <article class="recommendation"><strong>1. No proven edge yet.</strong><p>Keep real money out until the research gates pass.</p></article>
-      <article class="recommendation"><strong>2. Improve event timing.</strong><p>${findings.timing.unknown} of ${findings.timing.total} events (${timingPct}%) still have unknown trading time.</p></article>
-      <article class="recommendation"><strong>3. Keep watching energy.</strong><p>The result is interesting, but the evidence is still thin.</p></article>
+      <article class="recommendation"><strong>1. Test the long-only lead on new events.</strong><p>Do not count the historical discovery sample as confirmation.</p></article>
+      <article class="recommendation"><strong>2. Keep real money out for now.</strong><p>The future-validation count is still ${findings.semiLead.futureN}.</p></article>
+      <article class="recommendation"><strong>3. Improve event timing.</strong><p>${findings.timing.unknown} of ${findings.timing.total} events (${timingPct}%) still have unknown trading time.</p></article>
       <article class="recommendation"><strong>4. Enter your real trading costs.</strong><p>The A$ figures above will then show a more realistic net result.</p></article>`;
   }
 
