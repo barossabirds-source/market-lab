@@ -51,14 +51,18 @@
       </div>
       <div class="exec-toolbar">
         <div>
-          <p class="section-note"><strong>A$100 default:</strong> pair trades use total gross exposure split equally between the long and short sides. A short position may require additional broker collateral.</p>
+          <p class="section-note"><strong>Modest-capital view:</strong> change the starting amount and enter the all-in cost you would expect for one completed example. Pair trades remain research-only because short selling can need extra collateral and carries extra risk.</p>
         </div>
-        <label>Hypothetical capital (A$)<input id="capitalInput" type="number" min="10" step="10" value="100" /></label>
+        <div class="exec-inputs">
+          <label>Hypothetical capital (A$)<input id="capitalInput" type="number" min="10" step="10" value="100" /></label>
+          <label>All-in cost per example (A$)<input id="costInput" type="number" min="0" step="0.10" value="0" /></label>
+        </div>
       </div>
       <div class="callout" id="executiveStatus">Calculating the current findings…</div>
+      <div id="capitalReadiness" class="capital-readiness"></div>
       <div id="executiveCards" class="exec-grid"></div>
       <div id="recommendationCards" class="recommendation-grid"></div>
-      <p class="footnote"><strong>Important:</strong> these are gross historical illustrations, not forecasts. They exclude brokerage, bid/ask spread, short-borrow costs, foreign-exchange conversion, tax and slippage. Market Lab currently uses daily market data, so it cannot demonstrate risk-free arbitrage or prove that the displayed prices were simultaneously tradable immediately after an announcement.</p>
+      <p class="footnote"><strong>Important:</strong> these are historical illustrations, not forecasts. Enter your own expected brokerage, spread and currency-conversion cost to see a rough net figure. Tax, slippage, short-borrow costs and timing differences can still change the result. Market Lab currently uses daily market data, so it cannot demonstrate risk-free arbitrage or prove that the displayed prices were simultaneously tradable immediately after an announcement.</p>
     </section>
 
     <section id="longitudinal" class="section panel">
