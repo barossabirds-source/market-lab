@@ -43,7 +43,7 @@
     <section id="impact-map" class="section panel">
       <div class="section-heading">
         <div><p class="eyebrow">SECTOR DISPERSION</p><h2>Policy Impact Map</h2></div>
-        <p class="section-note">Shows what happened after an event across market areas. Relative movement is compared with the broad US market.</p>
+        <p class="section-note">Shows what happened after an event across market areas. Movement is compared with the broad US market and with the same period before the event.</p>
       </div>
       <div class="controls">
         <label>Event<select id="eventSelect"></select></label>
@@ -58,11 +58,20 @@
       <div class="impact-summary" id="impactSummary"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Market area</th><th>Fund</th><th>Fund move</th><th>Broad market</th><th>Relative move</th><th>Before event</th><th>Reaction vs before</th><th>Data quality</th></tr></thead>
+          <thead><tr>
+            <th>Market area</th>
+            <th>Fund</th>
+            <th title="The fund's price change over the selected period.">Fund change</th>
+            <th title="The broad US market's change over the same period.">Broad market change</th>
+            <th title="The fund's change minus the broad market's change.">Difference from broad market</th>
+            <th title="The fund's difference from the broad market over the same-length period before the event.">Difference before event</th>
+            <th title="How much the fund's relative performance changed after the event compared with before it.">Change after event compared with before</th>
+            <th>Timing quality</th>
+          </tr></thead>
           <tbody id="impactRows"></tbody>
         </table>
       </div>
-      <p class="footnote">A relative move is an observed difference, not proof that the policy event caused it. Intraday periods such as 30 minutes and two hours are deliberately left out until reliable intraday data is being captured consistently.</p>
+      <p class="footnote">Positive and negative signs are shown as well as colour. Displayed figures are rounded, so subtracting two displayed numbers can differ slightly from the stored result. A difference is an observed pattern, not proof that the policy event caused it. Intraday periods such as 30 minutes and two hours are deliberately left out until reliable intraday data is captured consistently.</p>
     </section>
 
     <section id="ledger" class="section panel">
@@ -76,7 +85,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Theme</th><th>What happened</th><th>Formal or remarks</th><th>Direction</th><th>Surprise</th><th>Market timing</th><th>Source</th></tr></thead>
+          <thead><tr><th>Date</th><th>Theme</th><th>What happened</th><th>Formal or remarks</th><th>Direction</th><th>How unexpected</th><th>Market timing</th><th>Source</th></tr></thead>
           <tbody id="ledgerRows"></tbody>
         </table>
       </div>
@@ -87,6 +96,7 @@
         <div><p class="eyebrow">PRE-REGISTER BEFORE TESTING</p><h2>Research Trial Register</h2></div>
         <p class="section-note">A hypothesis is written down before its result is inspected. This helps stop accidental cherry-picking.</p>
       </div>
+      <div class="callout"><strong>Promotion rule:</strong> a trial stays out of simulated strategy testing until it shows repeated support across at least 20 qualifying events and then holds up on data that was not used to judge the idea.</div>
       <div id="trialCards" class="trial-grid"></div>
     </section>
 
@@ -97,7 +107,7 @@
       <div class="gate-grid">
         <div class="gate"><span>1</span><strong>Register the idea</strong><p>State the rule before testing it.</p></div>
         <div class="gate"><span>2</span><strong>Repeated historical tests</strong><p>Check different periods and trading costs.</p></div>
-        <div class="gate"><span>3</span><strong>Hidden data test</strong><p>Use old data that was not used to choose the rule.</p></div>
+        <div class="gate"><span>3</span><strong>Unseen-data test</strong><p>Use historical or later data that was not used to choose or judge the rule.</p></div>
         <div class="gate"><span>4</span><strong>New-data simulation</strong><p>Record what the fixed rule would do on genuinely new data.</p></div>
       </div>
       <div class="safety-box"><strong>No live trading connection.</strong> Market Lab does not place brokerage orders. A strategy only reaches simulation after passing the research gates.</div>
