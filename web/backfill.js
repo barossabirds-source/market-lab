@@ -6,6 +6,43 @@
     return Number.isFinite(n) && n > 0 ? n : 2000;
   };
 
+  function ensureView() {
+    if (!document.querySelector('link[href="/backfill.css"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/backfill.css';
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('.nav a[href="#historical-backfill"]')) {
+      const nav = document.querySelector('.nav');
+      const anchor = document.createElement('a');
+      anchor.href = '#historical-backfill';
+      anchor.textContent = 'Historical Backfill';
+      const longLink = nav?.querySelector('a[href="#longitudinal"]');
+      if (nav) nav.insertBefore(anchor, longLink?.nextSibling || null);
+    }
+    if (!document.getElementById('historical-backfill')) {
+      const section = document.createElement('section');
+      section.id = 'historical-backfill';
+      section.className = 'section panel';
+      section.innerHTML = `
+        <div class="section-heading">
+          <div><p class="eyebrow">DEEPER HISTORICAL DISCOVERY</p><h2>Historical Backfill</h2></div>
+          <p class="section-note">Scans official Trump-era Presidential Documents, keeps automated classifications separate from the curated ledger, and searches the larger history for long-only ideas worth reviewing.</p>
+        </div>
+        <div class="callout" id="backfillSummary">Loading historical backfill…</div>
+        <div id="backfillMetrics" class="backfill-grid"></div>
+        <div class="discovery-note"><strong>Discovery queue:</strong> these patterns are automatically classified historical leads. They are not frozen rules until the underlying events are reviewed and the rule is written down before any future test.</div>
+        <div class="table-wrap discovery-table"><table>
+          <thead><tr><th>Theme</th><th>Fund</th><th>Hold</th><th>Events</th><th>Positive</th><th>Average</th><th>Worst</th><th>First / second term avg</th><th>Status</th></tr></thead>
+          <tbody id="discoveryRows"><tr><td colspan="9">Loading exploratory patterns…</td></tr></tbody>
+        </table></div>
+        <p class="footnote"><strong>Source and limitation:</strong> the automated layer uses official Federal Register Presidential Documents and signing dates where available. Theme and direction labels are transparent keyword-based guesses, so each promising rule must be manually checked before it is promoted into the curated research ledger.</p>`;
+      const long = document.getElementById('longitudinal');
+      if (long?.parentNode) long.parentNode.insertBefore(section, long.nextSibling);
+    }
+  }
+
   function rankDiscovery(d) {
     const n = Number(d.event_count || 0);
     const avg = Number(d.average_return);
@@ -17,10 +54,15 @@
   }
 
   async function renderHistoricalBackfill() {
+    ensureView();
     const summary = document.getElementById('backfillSummary');
     const metrics = document.getElementById('backfillMetrics');
     const body = document.getElementById('discoveryRows');
-    if (!summary || !metrics || !body || !state?.connected) return;
+    if (!summary || !metrics || !body) return;
+    if (!state?.connected) {
+      summary.innerHTML = '<strong>Historical backfill unavailable:</strong> Supabase is not connected.';
+      return;
+    }
 
     try {
       const [runs, candidates, discoveries] = await Promise.all([
@@ -37,7 +79,7 @@
       const ranked = allExploratory.sort((a,b) => rankDiscovery(b) - rankDiscovery(a)).slice(0, 12);
 
       summary.innerHTML = latest?.status === 'completed'
-        ? `<strong>Historical backfill complete.</strong> The automated layer scans official Federal Register presidential documents, classifies market-relevant candidates and measures 1, 3, 5 and 20 trading-day reactions. These records remain separate from the curated event ledger until reviewed.`
+        ? `<strong>Historical backfill complete.</strong> The automated layer scanned official Federal Register presidential documents, classified market-relevant candidates and measured 1, 3, 5 and 20 trading-day reactions. These records remain separate from the curated event ledger until reviewed.`
         : `<strong>Historical backfill status:</strong> ${escapeHtml(latest?.status || 'waiting')}. Candidate records are kept separate from the curated ledger.`;
 
       metrics.innerHTML = `
@@ -74,6 +116,7 @@
     }
   }
 
+  ensureView();
   window.addEventListener('load', () => setTimeout(renderHistoricalBackfill, 600));
   document.getElementById('capitalInput')?.addEventListener('input', () => setTimeout(renderHistoricalBackfill, 100));
 })();
