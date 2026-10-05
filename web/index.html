@@ -6,6 +6,7 @@
   <meta name="description" content="Market Lab research dashboard for event-driven market reactions and simulated strategy testing." />
   <title>Market Lab</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/executive.css" />
 </head>
 <body>
   <header class="topbar">
@@ -19,6 +20,7 @@
 
   <nav class="nav" aria-label="Market Lab sections">
     <a href="#overview">Overview</a>
+    <a href="#executive">Executive Summary</a>
     <a href="#impact-map">Policy Impact Map</a>
     <a href="#ledger">Event Ledger</a>
     <a href="#trials">Research Trials</a>
@@ -38,6 +40,23 @@
         <article class="metric"><span>Last data sync</span><strong id="metricSync">—</strong></article>
       </div>
       <div class="callout" id="dataMessage"></div>
+    </section>
+
+    <section id="executive" class="section panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">WHAT THE RESULTS MEAN</p><h2>Executive Summary & A$ Scenarios</h2></div>
+        <p class="section-note">Turns the measured evidence into plain-English findings and shows what the historical moves would mean for a small hypothetical position.</p>
+      </div>
+      <div class="exec-toolbar">
+        <div>
+          <p class="section-note"><strong>A$100 default:</strong> pair trades use total gross exposure split equally between the long and short sides. A short position may require additional broker collateral.</p>
+        </div>
+        <label>Hypothetical capital (A$)<input id="capitalInput" type="number" min="10" step="10" value="100" /></label>
+      </div>
+      <div class="callout" id="executiveStatus">Calculating the current findings…</div>
+      <div id="executiveCards" class="exec-grid"></div>
+      <div id="recommendationCards" class="recommendation-grid"></div>
+      <p class="footnote"><strong>Important:</strong> these are gross historical illustrations, not forecasts. They exclude brokerage, bid/ask spread, short-borrow costs, foreign-exchange conversion, tax and slippage. Market Lab currently uses daily market data, so it cannot demonstrate risk-free arbitrage or prove that the displayed prices were simultaneously tradable immediately after an announcement.</p>
     </section>
 
     <section id="impact-map" class="section panel">
@@ -117,5 +136,6 @@
   <footer>Market Lab · Research and simulated testing only · Market data can contain delays or gaps.</footer>
   <script src="/runtime-config.js"></script>
   <script src="/app.js"></script>
+  <script src="/executive.js"></script>
 </body>
 </html>
