@@ -1,0 +1,40 @@
+name: Market Lab daily research sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 23 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check database secrets
+        id: secrets
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_URL" ] || { [ -z "$SUPABASE_SECRET_KEY" ] && [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; }; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Supabase secrets are not configured yet; skipping safely."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install sync dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: pip install -r requirements.txt
+      - name: Sync events, prices and measured reactions
+        if: steps.secrets.outputs.ready == 'true'
+        run: python scripts/sync_market_data.py
