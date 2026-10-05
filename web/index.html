@@ -77,14 +77,14 @@
           <thead><tr>
             <th>Event date</th>
             <th>Policy theme</th>
-            <th>A$ result for this tariff-pair example</th>
-            <th>Six-month average</th>
-            <th>Running sum of fixed A$ examples</th>
+            <th>Net A$ result after entered cost</th>
+            <th>Six-month net average</th>
+            <th>Running net sum of fixed A$ examples</th>
           </tr></thead>
           <tbody id="longitudinalRows"></tbody>
         </table>
       </div>
-      <p class="footnote"><strong>How to read this:</strong> the tariff table uses the same pre-registered high-surprise escalation rule each time. The running sum adds repeated fixed-size historical examples; it is not a portfolio backtest, because events can overlap and real trading costs are excluded. A weaker result in later periods can suggest novelty decay, but it does not prove that repeated announcements caused the change.</p>
+      <p class="footnote"><strong>How to read this:</strong> the tariff table uses the same high-surprise escalation rule each time and subtracts the all-in cost entered above from every historical example. The running sum is not a portfolio backtest: events can overlap, and tax, slippage, financing, short-borrow costs and differences in execution timing are not fully modelled. A weaker result in later periods can suggest a changing market response, but it does not prove that repeated announcements caused the change.</p>
     </section>
 
     <section id="impact-map" class="section panel">
