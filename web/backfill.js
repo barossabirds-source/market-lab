@@ -32,12 +32,12 @@
         </div>
         <div class="callout" id="backfillSummary">Loading historical backfill…</div>
         <div id="backfillMetrics" class="backfill-grid"></div>
-        <div class="discovery-note"><strong>Discovery queue:</strong> these patterns use same-day clustering and non-overlapping holding windows so duplicate documents do not artificially inflate the sample. They still need manual event review before any rule is frozen.</div>
+        <div class="discovery-note"><strong>Discovery queue:</strong> these patterns use predefined theme-relevant funds, same-day clustering and non-overlapping holding windows so unrelated funds and duplicate documents do not inflate the result. They still need manual event review before any rule is frozen.</div>
         <div class="table-wrap discovery-table"><table>
           <thead><tr><th>Theme</th><th>Fund</th><th>Hold</th><th>Independent events</th><th>Positive</th><th>Average</th><th>Worst</th><th>First / second term avg</th><th>Status</th></tr></thead>
           <tbody id="discoveryRows"><tr><td colspan="9">Loading exploratory patterns…</td></tr></tbody>
         </table></div>
-        <p class="footnote"><strong>Source and limitation:</strong> the automated layer uses official Federal Register Presidential Documents and signing dates where available. Theme and direction labels are transparent keyword-based guesses. The discovery table also requires a positive average difference from the broad market, but that still does not prove causation or future profitability.</p>`;
+        <p class="footnote"><strong>Source and limitation:</strong> the automated layer uses official Federal Register Presidential Documents and signing dates where available. Theme and direction labels are transparent keyword-based guesses. The discovery table requires positive performance against the broad market, but that still does not prove causation or future profitability. Market backdrop records add pre-event volatility, US 10-year yield, oil, dollar and broad-market conditions for later comparison.</p>`;
       const long = document.getElementById('longitudinal');
       if (long?.parentNode) long.parentNode.insertBefore(section, long.nextSibling);
     }
@@ -67,10 +67,11 @@
     }
 
     try {
-      const [runs, candidates, discoveries] = await Promise.all([
+      const [runs, candidates, discoveries, contextRows] = await Promise.all([
         supabaseGet('backfill_runs', 'select=*&order=started_at.desc&limit=1'),
         supabaseGet('event_candidates', 'select=id,event_date,policy_theme,relevance_score,review_status&order=event_date.asc&limit=2000'),
         supabaseGet('historical_discoveries', 'select=*&source_dataset=eq.federal_register_clustered_nonoverlap&event_count=gte.5&limit=2000'),
+        supabaseGet('candidate_market_context', 'select=candidate_id&limit=2000'),
       ]);
 
       const latest = runs[0];
@@ -86,7 +87,7 @@
       const ranked = allExploratory.sort((a,b) => rankDiscovery(b) - rankDiscovery(a)).slice(0, 12);
 
       summary.innerHTML = latest?.status === 'completed'
-        ? `<strong>Historical backfill complete.</strong> The automated layer scanned official Federal Register presidential documents, classified market-relevant candidates and measured 1, 3, 5 and 20 trading-day reactions. Discovery results are then de-duplicated and spaced so overlapping return windows are not counted repeatedly.`
+        ? `<strong>Historical backfill complete.</strong> The automated layer scanned official Federal Register presidential documents, classified market-relevant candidates and measured 1, 3, 5 and 20 trading-day reactions. Discovery results are then restricted to relevant funds, de-duplicated and spaced so overlapping return windows are not counted repeatedly.`
         : `<strong>Historical backfill status:</strong> ${escapeHtml(latest?.status || 'waiting')}. Candidate records are kept separate from the curated ledger.`;
 
       metrics.innerHTML = `
@@ -94,6 +95,7 @@
         <article class="backfill-metric"><span>Market-relevant candidates</span><strong>${candidates.length.toLocaleString()}</strong></article>
         <article class="backfill-metric"><span>Candidate themes</span><strong>${themes.size}</strong></article>
         <article class="backfill-metric"><span>Refined pattern summaries</span><strong>${discoveries.length.toLocaleString()}</strong></article>
+        <article class="backfill-metric"><span>Market backdrop records</span><strong>${contextRows.length.toLocaleString()}</strong></article>
         <article class="backfill-metric"><span>Historical coverage</span><strong>${dates.length ? `${dates[0]} → ${dates[dates.length-1]}` : '—'}</strong></article>
         <article class="backfill-metric"><span>Manually reviewed candidates</span><strong>${reviewed.toLocaleString()}</strong></article>`;
 
