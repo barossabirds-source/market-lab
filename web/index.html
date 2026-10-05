@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Market Lab research dashboard for event-driven market reactions and simulated strategy testing." />
+  <title>Market Lab</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">RESEARCH SOFTWARE</p>
+      <h1>Market Lab</h1>
+      <p class="subtitle">Policy events, market reactions, repeated testing and simulated strategies.</p>
+    </div>
+    <div class="status-pill" id="connectionStatus">Checking data…</div>
+  </header>
+
+  <nav class="nav" aria-label="Market Lab sections">
+    <a href="#overview">Overview</a>
+    <a href="#impact-map">Policy Impact Map</a>
+    <a href="#ledger">Event Ledger</a>
+    <a href="#trials">Research Trials</a>
+    <a href="#simulation">Simulation</a>
+  </nav>
+
+  <main>
+    <section id="overview" class="section">
+      <div class="section-heading">
+        <div><p class="eyebrow">WHAT THE LAB KNOWS</p><h2>Overview</h2></div>
+        <p class="section-note">Facts, classifications and measured reactions are kept separate. No event is treated as a trading instruction.</p>
+      </div>
+      <div class="metric-grid">
+        <article class="metric"><span>Events recorded</span><strong id="metricEvents">—</strong></article>
+        <article class="metric"><span>Policy themes</span><strong id="metricThemes">—</strong></article>
+        <article class="metric"><span>Measured reactions</span><strong id="metricImpacts">—</strong></article>
+        <article class="metric"><span>Last data sync</span><strong id="metricSync">—</strong></article>
+      </div>
+      <div class="callout" id="dataMessage"></div>
+    </section>
+
+    <section id="impact-map" class="section panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">SECTOR DISPERSION</p><h2>Policy Impact Map</h2></div>
+        <p class="section-note">Shows what happened after an event across market areas. Relative movement is compared with the broad US market.</p>
+      </div>
+      <div class="controls">
+        <label>Event<select id="eventSelect"></select></label>
+        <label>Period after event<select id="horizonSelect">
+          <option value="1d">1 trading day</option>
+          <option value="3d">3 trading days</option>
+          <option value="5d">5 trading days</option>
+          <option value="20d">20 trading days</option>
+        </select></label>
+      </div>
+      <div class="event-card" id="eventCard"></div>
+      <div class="impact-summary" id="impactSummary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Market area</th><th>Fund</th><th>Fund move</th><th>Broad market</th><th>Relative move</th><th>Before event</th><th>Reaction vs before</th><th>Data quality</th></tr></thead>
+          <tbody id="impactRows"></tbody>
+        </table>
+      </div>
+      <p class="footnote">A relative move is an observed difference, not proof that the policy event caused it. Intraday periods such as 30 minutes and two hours are deliberately left out until reliable intraday data is being captured consistently.</p>
+    </section>
+
+    <section id="ledger" class="section panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">POINT-IN-TIME RECORD</p><h2>Event Ledger</h2></div>
+        <p class="section-note">The classification describes what was knowable at the event, rather than being rewritten to fit the later market outcome.</p>
+      </div>
+      <div class="filters">
+        <input id="ledgerSearch" type="search" placeholder="Search events, themes or summaries" />
+        <select id="themeFilter"><option value="">All themes</option></select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Theme</th><th>What happened</th><th>Formal or remarks</th><th>Direction</th><th>Surprise</th><th>Market timing</th><th>Source</th></tr></thead>
+          <tbody id="ledgerRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="trials" class="section panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">PRE-REGISTER BEFORE TESTING</p><h2>Research Trial Register</h2></div>
+        <p class="section-note">A hypothesis is written down before its result is inspected. This helps stop accidental cherry-picking.</p>
+      </div>
+      <div id="trialCards" class="trial-grid"></div>
+    </section>
+
+    <section id="simulation" class="section panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">ONLY AFTER THE EVIDENCE</p><h2>Simulated Strategy Gate</h2></div>
+      </div>
+      <div class="gate-grid">
+        <div class="gate"><span>1</span><strong>Register the idea</strong><p>State the rule before testing it.</p></div>
+        <div class="gate"><span>2</span><strong>Repeated historical tests</strong><p>Check different periods and trading costs.</p></div>
+        <div class="gate"><span>3</span><strong>Hidden data test</strong><p>Use old data that was not used to choose the rule.</p></div>
+        <div class="gate"><span>4</span><strong>New-data simulation</strong><p>Record what the fixed rule would do on genuinely new data.</p></div>
+      </div>
+      <div class="safety-box"><strong>No live trading connection.</strong> Market Lab does not place brokerage orders. A strategy only reaches simulation after passing the research gates.</div>
+    </section>
+  </main>
+
+  <footer>Market Lab · Research and simulated testing only · Market data can contain delays or gaps.</footer>
+  <script src="/runtime-config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
