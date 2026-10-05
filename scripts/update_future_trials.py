@@ -24,6 +24,7 @@ RULES = [
         "symbol": "SOXX",
         "horizon": "5d",
         "label": "China trade de-escalation → SOXX",
+        "source": "curated",
     },
     {
         "trial_key": "metals-escalation-materials-5d-future",
@@ -32,6 +33,7 @@ RULES = [
         "symbol": "XLB",
         "horizon": "5d",
         "label": "Metals tariff escalation → XLB",
+        "source": "curated",
     },
     {
         "trial_key": "defense-support-defense-5d-future",
@@ -40,6 +42,16 @@ RULES = [
         "symbol": "ITA",
         "horizon": "5d",
         "label": "Defense support action → ITA",
+        "source": "curated",
+    },
+    {
+        "trial_key": "infrastructure-support-industrials-3d-future",
+        "theme": "infrastructure_manufacturing",
+        "direction": "sector_support",
+        "symbol": "XLI",
+        "horizon": "3d",
+        "label": "Infrastructure/manufacturing support → XLI",
+        "source": "official_candidates",
     },
 ]
 
@@ -64,7 +76,7 @@ def rest(method: str, table: str, *, params: str = "", rows: Any | None = None, 
     return response.json() if response.text else None
 
 
-def update_rule(rule: dict[str, str]) -> None:
+def curated_values(rule: dict[str, str]) -> list[float]:
     events = rest(
         "GET",
         "events",
@@ -74,29 +86,63 @@ def update_rule(rule: dict[str, str]) -> None:
             "&order=event_date.asc&limit=100"
         ),
     ) or []
+    if not events:
+        return []
+    ids = ",".join(e["id"] for e in events)
+    impacts = rest(
+        "GET",
+        "event_impacts",
+        params=(
+            f"select=event_id,event_date,asset_return&event_id=in.({ids})"
+            f"&symbol=eq.{rule['symbol']}&horizon=eq.{rule['horizon']}&limit=100"
+        ),
+    ) or []
+    return [float(row["asset_return"]) for row in impacts if row.get("asset_return") is not None]
 
-    values: list[float] = []
-    if events:
-        ids = ",".join(e["id"] for e in events)
-        impacts = rest(
-            "GET",
-            "event_impacts",
-            params=(
-                f"select=event_id,event_date,asset_return&event_id=in.({ids})"
-                f"&symbol=eq.{rule['symbol']}&horizon=eq.{rule['horizon']}&limit=100"
-            ),
-        ) or []
-        for row in impacts:
-            if row.get("asset_return") is not None:
-                values.append(float(row["asset_return"]))
 
+def official_candidate_values(rule: dict[str, str]) -> list[float]:
+    candidates = rest(
+        "GET",
+        "event_candidates",
+        params=(
+            f"select=id,event_date,title&policy_theme=eq.{rule['theme']}"
+            f"&direction_guess=eq.{rule['direction']}&event_date=gt.{FREEZE_DATE}"
+            "&order=event_date.asc&limit=200"
+        ),
+    ) or []
+    if not candidates:
+        return []
+
+    # Multiple official documents can share the same signing date. Count the market outcome
+    # once per date so one policy package cannot masquerade as several independent events.
+    ids = ",".join(c["id"] for c in candidates)
+    impacts = rest(
+        "GET",
+        "candidate_event_impacts",
+        params=(
+            f"select=candidate_id,event_date,asset_return&candidate_id=in.({ids})"
+            f"&symbol=eq.{rule['symbol']}&horizon=eq.{rule['horizon']}&limit=300"
+        ),
+    ) or []
+    by_date: dict[str, list[float]] = {}
+    for row in impacts:
+        if row.get("asset_return") is None:
+            continue
+        d = str(row.get("event_date") or "")[:10]
+        by_date.setdefault(d, []).append(float(row["asset_return"]))
+    return [mean(values) for _, values in sorted(by_date.items()) if values]
+
+
+def update_rule(rule: dict[str, str]) -> None:
+    values = official_candidate_values(rule) if rule.get("source") == "official_candidates" else curated_values(rule)
     count = len(values)
     avg = mean(values) if values else None
     hit = sum(v > 0 for v in values) / count if count else None
 
     if count == 0:
+        source_text = "new official formal actions" if rule.get("source") == "official_candidates" else "qualifying future events"
         summary = (
-            f"Future-only validation is active from 5 Oct 2026. No qualifying future event has yet completed "
+            f"Future-only validation is active from 5 Oct 2026. No {source_text} have yet completed "
             f"a {rule['horizon']} {rule['symbol']} measurement. Historical discovery remains exploratory."
         )
     else:
