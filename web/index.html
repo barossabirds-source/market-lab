@@ -7,6 +7,7 @@
   <title>Market Lab</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/executive.css" />
+  <link rel="stylesheet" href="/longitudinal.css" />
 </head>
 <body>
   <header class="topbar">
@@ -21,6 +22,7 @@
   <nav class="nav" aria-label="Market Lab sections">
     <a href="#overview">Overview</a>
     <a href="#executive">Executive Summary</a>
+    <a href="#longitudinal">Longitudinal Trends</a>
     <a href="#impact-map">Policy Impact Map</a>
     <a href="#ledger">Event Ledger</a>
     <a href="#trials">Research Trials</a>
@@ -57,6 +59,28 @@
       <div id="executiveCards" class="exec-grid"></div>
       <div id="recommendationCards" class="recommendation-grid"></div>
       <p class="footnote"><strong>Important:</strong> these are gross historical illustrations, not forecasts. They exclude brokerage, bid/ask spread, short-borrow costs, foreign-exchange conversion, tax and slippage. Market Lab currently uses daily market data, so it cannot demonstrate risk-free arbitrage or prove that the displayed prices were simultaneously tradable immediately after an announcement.</p>
+    </section>
+
+    <section id="longitudinal" class="section panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">HOW THE PATTERN CHANGES</p><h2>Longitudinal Trends</h2></div>
+        <p class="section-note">Looks across time rather than treating each event as an isolated case. This helps show whether a market response is strengthening, fading or changing direction.</p>
+      </div>
+      <div class="callout" id="longitudinalSummary">Calculating changes through time…</div>
+      <div id="longitudinalCards" class="trend-grid"></div>
+      <div class="table-wrap longitudinal-table">
+        <table>
+          <thead><tr>
+            <th>Event date</th>
+            <th>Policy theme</th>
+            <th>A$ result for this tariff-pair example</th>
+            <th>Six-month average</th>
+            <th>Running sum of fixed A$ examples</th>
+          </tr></thead>
+          <tbody id="longitudinalRows"></tbody>
+        </table>
+      </div>
+      <p class="footnote"><strong>How to read this:</strong> the tariff table uses the same pre-registered high-surprise escalation rule each time. The running sum adds repeated fixed-size historical examples; it is not a portfolio backtest, because events can overlap and real trading costs are excluded. A weaker result in later periods can suggest novelty decay, but it does not prove that repeated announcements caused the change.</p>
     </section>
 
     <section id="impact-map" class="section panel">
@@ -137,5 +161,6 @@
   <script src="/runtime-config.js"></script>
   <script src="/app.js"></script>
   <script src="/executive.js"></script>
+  <script src="/longitudinal.js"></script>
 </body>
 </html>
