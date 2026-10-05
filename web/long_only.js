@@ -47,6 +47,20 @@
       best: 0.09395926986102365,
       evidence: 'Current discovery sample is second-term only, so regime evidence is weaker.',
     },
+    {
+      key: 'infrastructure-support-industrials-3d-future',
+      title: 'Infrastructure / manufacturing support',
+      trigger: 'A qualifying formal US infrastructure or domestic-manufacturing support action',
+      symbol: 'XLI',
+      asset: 'US industrials fund',
+      hold: '3 trading days',
+      n: 8,
+      avg: 0.019876320513100967,
+      hit: 0.75,
+      worst: -0.005369390387553463,
+      best: 0.0687869005504187,
+      evidence: 'Eight manually reviewed official actions across both Trump terms. Historical average beat the broad market by about 0.67 percentage points; future test is separate.',
+    },
   ];
 
   function capital() {
@@ -85,7 +99,7 @@
       ? ' Trading cost is currently set to A$0, so the net figures below are still optimistic.'
       : ` The figures subtract ${money(tradeCost)} per completed example.`;
 
-    intro.innerHTML = `<strong>Frozen on 5 Oct 2026:</strong> these three rules were selected from historical discovery, then locked. They are now judged only on new events. The starting amount is <strong>${money(c)}</strong>.${costWarning}`;
+    intro.innerHTML = `<strong>Frozen on 5 Oct 2026:</strong> these four rules were selected from historical discovery, then locked. They are now judged only on new events. The starting amount is <strong>${money(c)}</strong>.${costWarning}`;
 
     root.innerHTML = RULES.map(rule => {
       const trial = futureTrial(rule.key);
