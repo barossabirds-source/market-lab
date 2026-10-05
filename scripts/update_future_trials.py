@@ -1,6 +1,7 @@
-"""Update Market Lab trials that were discovered historically but must be tested only on future unseen events.
+"""Update Market Lab rules that were discovered historically but must prove themselves on unseen future events.
 
-This keeps exploratory discovery separate from validation. It never places trades.
+The rules in this file are frozen. Historical discovery results are not mixed into future validation.
+This script never places trades.
 """
 from __future__ import annotations
 
@@ -14,7 +15,33 @@ import requests
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 FREEZE_DATE = "2026-10-05"
-TRIAL_KEY = "china-deescalation-semiconductors-5d-future"
+
+RULES = [
+    {
+        "trial_key": "china-deescalation-semiconductors-5d-future",
+        "theme": "china_trade",
+        "direction": "deescalation",
+        "symbol": "SOXX",
+        "horizon": "5d",
+        "label": "China trade de-escalation → SOXX",
+    },
+    {
+        "trial_key": "metals-escalation-materials-5d-future",
+        "theme": "metals_tariffs",
+        "direction": "escalation",
+        "symbol": "XLB",
+        "horizon": "5d",
+        "label": "Metals tariff escalation → XLB",
+    },
+    {
+        "trial_key": "defense-support-defense-5d-future",
+        "theme": "defense",
+        "direction": "sector_support",
+        "symbol": "ITA",
+        "horizon": "5d",
+        "label": "Defense support action → ITA",
+    },
+]
 
 
 def headers() -> dict[str, str]:
@@ -37,33 +64,31 @@ def rest(method: str, table: str, *, params: str = "", rows: Any | None = None, 
     return response.json() if response.text else None
 
 
-def main() -> int:
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return 0
-
+def update_rule(rule: dict[str, str]) -> None:
     events = rest(
         "GET",
         "events",
         params=(
-            "select=id,event_date,summary&policy_theme=eq.china_trade&direction=eq.deescalation"
-            f"&event_date=gt.{FREEZE_DATE}&order=event_date.asc&limit=100"
+            f"select=id,event_date,summary&policy_theme=eq.{rule['theme']}"
+            f"&direction=eq.{rule['direction']}&event_date=gt.{FREEZE_DATE}"
+            "&order=event_date.asc&limit=100"
         ),
     ) or []
 
     values: list[float] = []
-    dates: list[str] = []
     if events:
         ids = ",".join(e["id"] for e in events)
         impacts = rest(
             "GET",
             "event_impacts",
-            params=f"select=event_id,event_date,asset_return&event_id=in.({ids})&symbol=eq.SOXX&horizon=eq.5d&limit=100",
+            params=(
+                f"select=event_id,event_date,asset_return&event_id=in.({ids})"
+                f"&symbol=eq.{rule['symbol']}&horizon=eq.{rule['horizon']}&limit=100"
+            ),
         ) or []
         for row in impacts:
-            if row.get("asset_return") is None:
-                continue
-            values.append(float(row["asset_return"]))
-            dates.append(str(row.get("event_date") or ""))
+            if row.get("asset_return") is not None:
+                values.append(float(row["asset_return"]))
 
     count = len(values)
     avg = mean(values) if values else None
@@ -71,30 +96,44 @@ def main() -> int:
 
     if count == 0:
         summary = (
-            "Future-only validation is active from 5 Oct 2026. No qualifying China-trade de-escalation event "
-            "has yet completed a 5-trading-day SOXX measurement. The historical discovery sample remains exploratory."
+            f"Future-only validation is active from 5 Oct 2026. No qualifying future event has yet completed "
+            f"a {rule['horizon']} {rule['symbol']} measurement. Historical discovery remains exploratory."
         )
     else:
         summary = (
             f"Future-only validation has {count} measurable event{'s' if count != 1 else ''}. "
-            f"SOXX averaged {avg*100:+.2f}% over 5 trading days and was positive in {hit*100:.0f}% of these future events. "
-            "Keep the rule frozen; do not combine this validation result with the historical discovery sample when judging unseen-data performance."
+            f"{rule['symbol']} averaged {avg*100:+.2f}% over {rule['horizon'].replace('d', ' trading days')} "
+            f"and was positive in {hit*100:.0f}% of these unseen events. Keep the rule frozen."
         )
+
+    if count < 5:
+        status = "registered"
+    elif avg is not None and hit is not None and avg > 0 and hit >= 0.60:
+        status = "some_support"
+    else:
+        status = "mixed_not_supported"
 
     rest(
         "PATCH",
         "research_trials",
-        params=f"trial_key=eq.{TRIAL_KEY}",
+        params=f"trial_key=eq.{rule['trial_key']}",
         rows={
             "event_count": count,
             "average_effect": avg,
             "hit_rate": hit,
             "result_summary": summary,
-            "status": "registered" if count < 5 else "testing",
+            "status": status,
         },
         prefer="return=minimal",
     )
-    print(f"Updated {TRIAL_KEY}: {count} future events")
+    print(f"Updated {rule['trial_key']}: {count} future events")
+
+
+def main() -> int:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return 0
+    for rule in RULES:
+        update_rule(rule)
     return 0
 
 
