@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/executive.css" />
   <link rel="stylesheet" href="/longitudinal.css" />
+  <link rel="stylesheet" href="/long_only.css" />
 </head>
 <body>
   <header class="topbar">
@@ -51,10 +52,10 @@
       </div>
       <div class="exec-toolbar">
         <div>
-          <p class="section-note"><strong>Modest-capital view:</strong> change the starting amount and enter the all-in cost you would expect for one completed example. Pair trades remain research-only because short selling can need extra collateral and carries extra risk.</p>
+          <p class="section-note"><strong>Modest-capital view:</strong> the default research amount is now A$2,000. Enter the all-in cost you would expect for one completed example. Pair trades remain research-only because short selling can need extra collateral and carries extra risk.</p>
         </div>
         <div class="exec-inputs">
-          <label>Hypothetical capital (A$)<input id="capitalInput" type="number" min="10" step="10" value="100" /></label>
+          <label>Hypothetical capital (A$)<input id="capitalInput" type="number" min="100" step="100" value="2000" /></label>
           <label>All-in cost per example (A$)<input id="costInput" type="number" min="0" step="0.10" value="0" /></label>
         </div>
       </div>
@@ -62,6 +63,16 @@
       <div id="capitalReadiness" class="capital-readiness"></div>
       <div id="executiveCards" class="exec-grid"></div>
       <div id="recommendationCards" class="recommendation-grid"></div>
+
+      <div class="long-only-block">
+        <div class="long-only-heading">
+          <div><p class="eyebrow">FROZEN LONG-ONLY CANDIDATES</p><h3>Three rules now proving themselves on new events</h3></div>
+          <p class="section-note">Historical results selected these candidates. From 5 Oct 2026 onward, the rule cannot be changed to fit the outcome.</p>
+        </div>
+        <div class="callout" id="longOnlyIntro">Loading frozen long-only candidates…</div>
+        <div id="longOnlyCandidates" class="long-only-grid"></div>
+      </div>
+
       <p class="footnote"><strong>Important:</strong> these are historical illustrations, not forecasts. Enter your own expected brokerage, spread and currency-conversion cost to see a rough net figure. Tax, slippage, short-borrow costs and timing differences can still change the result. Market Lab currently uses daily market data, so it cannot demonstrate risk-free arbitrage or prove that the displayed prices were simultaneously tradable immediately after an announcement.</p>
     </section>
 
@@ -166,5 +177,6 @@
   <script src="/app.js"></script>
   <script src="/executive.js"></script>
   <script src="/longitudinal.js"></script>
+  <script src="/long_only.js"></script>
 </body>
 </html>
