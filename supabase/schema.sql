@@ -84,29 +84,119 @@ create table if not exists public.sync_runs (
   message text
 );
 
+-- Automatically collected official documents are kept separate from the curated event ledger.
+-- This prevents an automated classification from silently becoming a trading rule.
+create table if not exists public.event_candidates (
+  id uuid primary key default gen_random_uuid(),
+  candidate_key text not null unique,
+  event_date date not null,
+  signing_date date,
+  publication_date date,
+  document_number text,
+  title text not null,
+  abstract text,
+  source_url text,
+  source_name text not null default 'Federal Register',
+  source_kind text not null default 'presidential_document',
+  document_subtype text,
+  executive_order_number text,
+  proclamation_number text,
+  policy_theme text not null,
+  direction_guess text not null default 'unknown',
+  relevance_score integer not null default 0,
+  affected_symbols text[] not null default '{}',
+  classification_basis text,
+  review_status text not null default 'candidate',
+  auto_collected boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.candidate_event_impacts (
+  candidate_id uuid not null references public.event_candidates(id) on delete cascade,
+  event_date date not null,
+  symbol text not null,
+  asset_name text not null,
+  asset_group text not null,
+  benchmark_symbol text not null default 'SPY',
+  horizon text not null,
+  asset_return numeric,
+  benchmark_return numeric,
+  abnormal_return numeric,
+  pre_event_abnormal_return numeric,
+  reaction_vs_pre numeric,
+  data_quality text not null default 'daily_date_only',
+  calculated_at timestamptz not null default now(),
+  primary key (candidate_id, symbol, horizon)
+);
+
+create table if not exists public.historical_discoveries (
+  discovery_key text primary key,
+  policy_theme text not null,
+  direction_guess text not null,
+  symbol text not null,
+  asset_name text not null,
+  asset_group text not null,
+  horizon text not null,
+  event_count integer not null,
+  average_return numeric,
+  median_return numeric,
+  hit_rate numeric,
+  worst_return numeric,
+  best_return numeric,
+  average_abnormal_return numeric,
+  beat_market_rate numeric,
+  first_term_count integer not null default 0,
+  first_term_average numeric,
+  second_term_count integer not null default 0,
+  second_term_average numeric,
+  source_dataset text not null default 'auto_federal_register_candidates',
+  status text not null default 'exploratory_auto',
+  calculated_at timestamptz not null default now()
+);
+
+create table if not exists public.backfill_runs (
+  id uuid primary key default gen_random_uuid(),
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  status text not null,
+  documents_fetched integer not null default 0,
+  candidates_written integer not null default 0,
+  impacts_written integer not null default 0,
+  discoveries_written integer not null default 0,
+  message text
+);
+
 alter table public.events enable row level security;
 alter table public.market_observations enable row level security;
 alter table public.event_impacts enable row level security;
 alter table public.research_trials enable row level security;
 alter table public.sync_runs enable row level security;
+alter table public.event_candidates enable row level security;
+alter table public.candidate_event_impacts enable row level security;
+alter table public.historical_discoveries enable row level security;
+alter table public.backfill_runs enable row level security;
 
 grant usage on schema public to anon, authenticated;
-grant select on public.events, public.event_impacts, public.research_trials, public.sync_runs to anon, authenticated;
-grant all on public.events, public.market_observations, public.event_impacts, public.research_trials, public.sync_runs to service_role;
+grant select on public.events, public.event_impacts, public.research_trials, public.sync_runs,
+  public.event_candidates, public.candidate_event_impacts, public.historical_discoveries, public.backfill_runs
+  to anon, authenticated;
+grant all on public.events, public.market_observations, public.event_impacts, public.research_trials, public.sync_runs,
+  public.event_candidates, public.candidate_event_impacts, public.historical_discoveries, public.backfill_runs
+  to service_role;
 
 -- Public dashboard reads only research outputs. No public INSERT/UPDATE/DELETE policies are created.
-do $$ begin
-  create policy "public read events" on public.events for select to anon, authenticated using (true);
-exception when duplicate_object then null; end $$;
-do $$ begin
-  create policy "public read impacts" on public.event_impacts for select to anon, authenticated using (true);
-exception when duplicate_object then null; end $$;
-do $$ begin
-  create policy "public read trials" on public.research_trials for select to anon, authenticated using (true);
-exception when duplicate_object then null; end $$;
-do $$ begin
-  create policy "public read sync runs" on public.sync_runs for select to anon, authenticated using (true);
-exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read events" on public.events for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read impacts" on public.event_impacts for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read trials" on public.research_trials for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read sync runs" on public.sync_runs for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read event candidates" on public.event_candidates for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read candidate impacts" on public.candidate_event_impacts for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read historical discoveries" on public.historical_discoveries for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "public read backfill runs" on public.backfill_runs for select to anon, authenticated using (true); exception when duplicate_object then null; end $$;
+
+create index if not exists event_candidates_theme_idx on public.event_candidates(policy_theme, direction_guess, event_date);
+create index if not exists candidate_impacts_lookup_idx on public.candidate_event_impacts(symbol, horizon, event_date);
 
 insert into public.research_trials (trial_key,hypothesis,policy_theme,horizon,test_method,status,result_summary)
 values
