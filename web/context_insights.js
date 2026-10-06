@@ -28,16 +28,16 @@
       section.innerHTML = `
         <div class="section-heading">
           <div><p class="eyebrow">WHEN A PATTERN WORKED BETTER</p><h2>Market Context</h2></div>
-          <p class="section-note">Tests simple pre-event conditions such as market direction, volatility, bond yields, oil and the US dollar. This is exploratory and does not change any frozen rule.</p>
+          <p class="section-note">Tests simple pre-event conditions such as market direction, volatility, bond yields, oil and the US dollar. Automatic results stay hidden until they are manually reviewed.</p>
         </div>
         <div class="callout" id="contextSummary">Loading market-context analysis…</div>
-        <div class="context-warning"><strong>Important:</strong> these conditions were found by looking backwards. A stronger historical result under one condition is a research lead, not permission to change a frozen rule or use real money.</div>
+        <div class="context-warning"><strong>Important:</strong> these conditions are discovered by looking backwards. Market Lab does not change a frozen rule just because a historical subgroup looks better.</div>
         <div id="contextCards" class="context-grid"></div>
         <div class="table-wrap context-table"><table>
           <thead><tr><th>Policy pattern</th><th>Pre-event condition</th><th>Independent events</th><th>Average return</th><th>Positive</th><th>Beat broad market</th><th>Improvement vs base</th><th>A$ effect</th></tr></thead>
-          <tbody id="contextRows"><tr><td colspan="8">Loading context summaries…</td></tr></tbody>
+          <tbody id="contextRows"><tr><td colspan="8">Loading reviewed context summaries…</td></tr></tbody>
         </table></div>
-        <p class="footnote">Only simple one-factor conditions are tested here. Market Lab deliberately avoids searching thousands of combinations because that would make accidental historical patterns much easier to manufacture.</p>`;
+        <p class="footnote">Only simple one-factor conditions are tested. Automatic leads are not shown until their underlying events and classifications have been checked. This reduces the chance that an accidental historical pattern is mistaken for an investment rule.</p>`;
       const historical = document.getElementById('historical-backfill');
       if (historical?.parentNode) historical.parentNode.insertBefore(section, historical.nextSibling);
       else document.querySelector('main')?.appendChild(section);
@@ -59,6 +59,10 @@
     return `${theme} · ${direction} → ${row.symbol} · ${hold}`;
   }
 
+  function reviewLabel(row) {
+    return String(row.review_status || '') === 'promising_reviewed' ? 'Reviewed candidate' : 'Watch only';
+  }
+
   async function renderContextInsights() {
     ensureView();
     const summary = document.getElementById('contextSummary');
@@ -74,31 +78,35 @@
         'context_condition_summaries',
         'select=*&source_dataset=eq.federal_register_context_v1&event_count=gte.4&order=event_count.desc&limit=1000'
       );
-      const usable = rows.filter(r =>
+      const automatic = rows.filter(r =>
         Number(r.base_event_count || 0) >= 8 &&
         Number(r.base_average_return || 0) > 0 &&
         Number(r.base_hit_rate || 0) >= 0.55 &&
         Number(r.average_return || 0) > 0 &&
         Number(r.average_abnormal_return || 0) > 0 &&
-        Number(r.beat_market_rate || 0) >= 0.60
-      );
-      const stronger = usable.filter(r =>
+        Number(r.beat_market_rate || 0) >= 0.60 &&
         Number(r.return_lift || 0) >= 0.003 &&
         Number(r.hit_rate_lift || 0) >= 0
       ).sort((a,b) => score(b) - score(a));
-      const display = stronger.slice(0, 12);
+
+      const reviewed = automatic.filter(r => ['watch', 'promising_reviewed'].includes(String(r.review_status || '')));
+      const display = reviewed.slice(0, 12);
       const capital = cap();
 
-      summary.innerHTML = display.length
-        ? `<strong>${display.length} context leads currently clear the display screen.</strong> These are conditions where an already-positive historical policy pattern looked stronger than its own overall average. They remain exploratory until tested on unseen events.`
-        : `<strong>No context condition currently clears the display screen.</strong> That is a useful result: the present data does not justify adding a market-condition filter to a frozen rule.`;
+      if (display.length) {
+        summary.innerHTML = `<strong>${display.length} manually reviewed context lead${display.length === 1 ? '' : 's'} currently remain on the board.</strong> Another ${Math.max(0, automatic.length - display.length)} automatic lead${Math.max(0, automatic.length - display.length) === 1 ? '' : 's'} are hidden until their underlying events are checked.`;
+      } else if (automatic.length) {
+        summary.innerHTML = `<strong>${automatic.length} automatic context lead${automatic.length === 1 ? '' : 's'} were found, but none are being promoted yet.</strong> They stay hidden until manual event review confirms that the pattern is coherent and the timing is investable.`;
+      } else {
+        summary.innerHTML = '<strong>No market-context filter currently improves a sufficiently large positive pattern enough to pass the automatic screen.</strong>';
+      }
 
       const top = display.slice(0, 3);
       cards.innerHTML = top.map(r => {
         const avg = Number(r.average_return || 0);
         const lift = Number(r.return_lift || 0);
         return `<article class="context-card">
-          <span class="context-pill">Exploratory only</span>
+          <span class="context-pill">${escapeHtml(reviewLabel(r))}</span>
           <h3>${escapeHtml(patternLabel(r))}</h3>
           <p><strong>${escapeHtml(r.condition_label || '')}</strong></p>
           <div class="context-money">${money(capital * avg)} average on ${money(capital)}</div>
@@ -108,6 +116,7 @@
             <div><dt>Average return</dt><dd>${pct(avg)}</dd></div>
             <div><dt>Better than base by</dt><dd>${pct(lift)}</dd></div>
           </dl>
+          <p class="muted">${escapeHtml(r.review_notes || '')}</p>
         </article>`;
       }).join('');
 
@@ -115,8 +124,8 @@
         const avg = Number(r.average_return || 0);
         const lift = Number(r.return_lift || 0);
         return `<tr>
-          <td><strong>${escapeHtml(patternLabel(r))}</strong><div class="muted">Base sample ${Number(r.base_event_count || 0)} events</div></td>
-          <td>${escapeHtml(r.condition_label || '')}</td>
+          <td><strong>${escapeHtml(patternLabel(r))}</strong><div class="muted">${escapeHtml(reviewLabel(r))} · Base sample ${Number(r.base_event_count || 0)} events</div></td>
+          <td>${escapeHtml(r.condition_label || '')}<div class="muted">${escapeHtml(r.review_notes || '')}</div></td>
           <td>${Number(r.event_count || 0)}</td>
           <td>${pct(avg)}</td>
           <td>${pct(r.hit_rate)}</td>
@@ -124,7 +133,7 @@
           <td>${pct(lift)}<div class="muted">Hit-rate change ${pct(r.hit_rate_lift)}</div></td>
           <td>${money(capital * avg)}<div class="muted">gross historical average</div></td>
         </tr>`;
-      }).join('') || '<tr><td colspan="8">No simple market condition has yet improved a sufficiently large positive policy pattern enough to display.</td></tr>';
+      }).join('') || '<tr><td colspan="8">No automatic context pattern has passed manual review under the current source-safe timing rules.</td></tr>';
     } catch (err) {
       console.warn('Market context view unavailable', err);
       summary.innerHTML = '<strong>Market-context data is temporarily unavailable.</strong>';
