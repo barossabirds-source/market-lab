@@ -2,7 +2,6 @@
   const money = (value) => new Intl.NumberFormat('en-AU', {
     style: 'currency', currency: 'AUD', minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(Number(value) || 0);
-  const percent = (value) => `${Number(value) >= 0 ? '+' : ''}${(Number(value) * 100).toFixed(2)}%`;
 
   const RULES = [
     {
@@ -17,7 +16,8 @@
       hit: 0.875,
       worst: -0.07042330039405942,
       best: 0.09894803979606692,
-      evidence: 'Seen in both Trump terms. Historical discovery only.',
+      evidence: 'Seen in both Trump terms in the curated discovery sample.',
+      review: 'Keep watching. The automated Federal Register layer has not yet reproduced enough directly comparable China de-escalation events to confirm or reject this rule independently.',
     },
     {
       key: 'metals-escalation-materials-5d-future',
@@ -31,7 +31,8 @@
       hit: 0.80,
       worst: -0.00016603971579431942,
       best: 0.03920238073754545,
-      evidence: 'Positive average in both Trump terms. Historical discovery only.',
+      evidence: 'The five-event curated sample was positive in both Trump terms.',
+      review: 'Lower priority. The broader official backfill found 14 matching metals-escalation dates with an average five-day XLB return close to 0% and only 57% positive. The rule stays frozen so we can test it fairly, but the larger history weakens the original case.',
     },
     {
       key: 'defense-support-defense-5d-future',
@@ -45,7 +46,8 @@
       hit: 5 / 7,
       worst: -0.04014520724896942,
       best: 0.09395926986102365,
-      evidence: 'Current discovery sample is second-term only, so regime evidence is weaker.',
+      evidence: 'The original discovery sample was mostly second-term evidence.',
+      review: 'Keep watching, but confidence is limited. The broader official layer currently has too few directly matching defence-support actions to provide a useful independent check.',
     },
     {
       key: 'infrastructure-support-industrials-3d-future',
@@ -59,7 +61,8 @@
       hit: 0.75,
       worst: -0.005369390387553463,
       best: 0.0687869005504187,
-      evidence: 'Eight manually reviewed official actions across both Trump terms. Historical average beat the broad market by about 0.67 percentage points; future test is separate.',
+      evidence: 'Eight manually reviewed official actions across both Trump terms. Historical average beat the broad market by about 0.67 percentage points.',
+      review: 'Highest research priority of the four at present. The expanded official backfill reproduces the same eight-event pattern across both Trump terms. It still needs unseen future events before any real-money decision.',
     },
   ];
 
@@ -93,13 +96,16 @@
     const intro = document.getElementById('longOnlyIntro');
     if (!root || !intro) return;
 
+    const heading = document.querySelector('.long-only-heading h3');
+    if (heading) heading.textContent = 'Four frozen rules under review and future testing';
+
     const c = capital();
     const tradeCost = cost();
     const costWarning = tradeCost === 0
       ? ' Trading cost is currently set to A$0, so the net figures below are still optimistic.'
       : ` The figures subtract ${money(tradeCost)} per completed example.`;
 
-    intro.innerHTML = `<strong>Frozen on 5 Oct 2026:</strong> these four rules were selected from historical discovery, then locked. They are now judged only on new events. The starting amount is <strong>${money(c)}</strong>.${costWarning}`;
+    intro.innerHTML = `<strong>Frozen on 5 Oct 2026:</strong> these four rules remain fixed so later evidence can strengthen or weaken them without moving the goalposts. The starting amount is <strong>${money(c)}</strong>.${costWarning}`;
 
     root.innerHTML = RULES.map(rule => {
       const trial = futureTrial(rule.key);
@@ -124,19 +130,20 @@
         <p><strong>Trigger:</strong> ${escapeHtml(rule.trigger)}.</p>
         <p><strong>Action being tested:</strong> buy ${escapeHtml(rule.asset)} (${escapeHtml(rule.symbol)}) and hold for ${escapeHtml(rule.hold)}.</p>
         <div class="long-money">
-          <div><span>Historical average on ${money(c)}</span><strong>${money(historicalGross)}</strong></div>
+          <div><span>Original historical average on ${money(c)}</span><strong>${money(historicalGross)}</strong></div>
           <div><span>After entered cost</span><strong class="${historicalNet >= 0 ? 'pos' : 'neg'}">${money(historicalNet)}</strong></div>
         </div>
         <dl class="long-stats">
-          <div><dt>Historical events</dt><dd>${rule.n}</dd></div>
+          <div><dt>Original historical events</dt><dd>${rule.n}</dd></div>
           <div><dt>Historically positive</dt><dd>${Math.round(rule.hit * 100)}%</dd></div>
-          <div><dt>Worst historical ${money(c)} result</dt><dd class="${worstNet >= 0 ? 'pos' : 'neg'}">${money(worstNet)}</dd></div>
-          <div><dt>Best historical ${money(c)} result</dt><dd class="${bestNet >= 0 ? 'pos' : 'neg'}">${money(bestNet)}</dd></div>
+          <div><dt>Worst original ${money(c)} result</dt><dd class="${worstNet >= 0 ? 'pos' : 'neg'}">${money(worstNet)}</dd></div>
+          <div><dt>Best original ${money(c)} result</dt><dd class="${bestNet >= 0 ? 'pos' : 'neg'}">${money(bestNet)}</dd></div>
           <div><dt>Future unseen events</dt><dd>${futureN}</dd></div>
           <div><dt>Future average after cost</dt><dd>${Number.isFinite(futureNet) ? money(futureNet) : 'Waiting'}</dd></div>
           <div><dt>Future positive rate</dt><dd>${Number.isFinite(futureHit) ? `${Math.round(futureHit * 100)}%` : 'Waiting'}</dd></div>
         </dl>
         <p class="long-note">${escapeHtml(rule.evidence)}</p>
+        <p class="long-note"><strong>Expanded-history check:</strong> ${escapeHtml(rule.review)}</p>
         <p class="long-gate"><strong>Gate:</strong> no family-capital use from this dashboard. First review point is 5 unseen events with a positive average after costs and at least 60% positive outcomes. A stronger review requires 10 unseen events.</p>
       </article>`;
     }).join('');
