@@ -1,10 +1,10 @@
 """Refine automatically collected historical discoveries.
 
 The raw backfill can contain multiple documents signed on the same day, overlapping
-holding windows, and unrelated funds. Counting those as independent evidence can greatly
-exaggerate apparent sample size. This pass collapses same-day theme clusters, keeps
-non-overlapping observations, and only tests funds that were defined for that policy theme
-before returns were inspected.
+holding windows, routine renewals, and unrelated funds. Counting those as independent
+evidence can greatly exaggerate apparent sample size. This pass removes obvious routine
+documents, collapses same-day theme clusters, keeps non-overlapping observations, and only
+tests funds that were defined for that policy theme before returns were inspected.
 """
 from __future__ import annotations
 
@@ -21,12 +21,8 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SOURCE_DATASET = "federal_register_clustered_nonoverlap"
 
-# Conservative calendar gaps used to avoid counting substantially overlapping return windows
-# as separate observations. They are deliberately longer than the nominal trading-day hold.
 MIN_GAP_DAYS = {"1d": 2, "3d": 5, "5d": 8, "20d": 30}
 
-# Predefined market areas for each policy theme. This prevents the discovery engine from
-# testing every fund against every headline and then keeping accidental winners.
 THEME_SYMBOLS: dict[str, set[str]] = {
     "china_trade": {"SOXX", "SMH", "QQQ", "XLK", "EEM", "XLI"},
     "trade_tariffs": {"XLI", "XLB", "SOXX", "QQQ", "XLY", "IWM", "EEM"},
@@ -40,6 +36,17 @@ THEME_SYMBOLS: dict[str, set[str]] = {
     "tax_fiscal": {"SPY", "XLF", "IWM", "XLI"},
     "labor_immigration": {"IWM", "XLY", "XLI"},
 }
+
+# These are usually scheduled renewals or administrative repetitions rather than genuinely
+# new policy surprises. Keeping them in an event-driven discovery set can manufacture false
+# patterns because the market already expects them.
+ROUTINE_TITLE_PATTERNS = (
+    "continuation of the national emergency",
+    "sequestration order for fiscal year",
+    "presidential determination on refugee admissions",
+    "order of succession within",
+    "providing an order of succession within",
+)
 
 
 def headers() -> dict[str, str]:
@@ -73,14 +80,18 @@ def fetch_all(table: str, select: str, extra: str = "") -> list[dict[str, Any]]:
         batch = rest("GET", table, params="&".join(parts)) or []
         out.extend(batch)
         if len(batch) < step:
-            break
+            return out
         offset += step
-    return out
 
 
 def chunks(items: list[dict[str, Any]], size: int = 200):
     for i in range(0, len(items), size):
         yield items[i:i + size]
+
+
+def obvious_routine(title: str) -> bool:
+    text = title.lower().strip()
+    return any(pattern in text for pattern in ROUTINE_TITLE_PATTERNS)
 
 
 def non_overlapping(rows: list[dict[str, Any]], horizon: str) -> list[dict[str, Any]]:
@@ -166,19 +177,22 @@ def main() -> int:
     )
 
     enriched: list[dict[str, Any]] = []
+    excluded_routine = 0
     for row in impacts:
         meta = cmeta.get(str(row.get("candidate_id")))
         if not meta:
             continue
         theme = str(meta.get("policy_theme") or "unknown")
         symbol = str(row.get("symbol") or "")
-        # Only test funds mapped to this theme before outcomes were inspected.
         if symbol not in THEME_SYMBOLS.get(theme, set()):
             continue
-        title = str(meta.get("title") or "").lower()
+        title = str(meta.get("title") or "")
+        if obvious_routine(title):
+            excluded_routine += 1
+            continue
+        title_l = title.lower()
         basis = str(meta.get("classification_basis") or "").lower()
-        # Correct the known substring artefact where 'mining' can appear inside 'examining'.
-        if "theme energy: mining" in basis and " mining " not in f" {title} ":
+        if "theme energy: mining" in basis and " mining " not in f" {title_l} ":
             continue
         item = dict(row)
         item["policy_theme"] = theme
@@ -205,8 +219,6 @@ def main() -> int:
         if s:
             summaries.append(s)
 
-    # These rows are fully generated from the current candidate set, so clear only this
-    # generated slice before writing the revised summaries. Curated trials are untouched.
     rest("DELETE", "historical_discoveries", params=f"source_dataset=eq.{SOURCE_DATASET}", prefer="return=minimal")
     for batch in chunks(summaries):
         rest(
@@ -215,7 +227,8 @@ def main() -> int:
         )
     print(
         f"Refined {len(summaries)} historical summaries using predefined theme funds, "
-        "same-day clustering and non-overlapping windows."
+        f"routine-renewal exclusions, same-day clustering and non-overlapping windows. "
+        f"Skipped {excluded_routine} impact rows tied to obvious routine documents."
     )
     return 0
 
