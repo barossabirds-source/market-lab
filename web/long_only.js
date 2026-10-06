@@ -5,12 +5,45 @@
 
   const RULES = [
     {
+      key: 'infrastructure-support-industrials-3d-future',
+      title: 'Infrastructure / manufacturing support',
+      trigger: 'A qualifying formal US infrastructure or domestic-manufacturing support action',
+      symbol: 'XLI',
+      asset: 'US industrials fund',
+      hold: '3 trading days',
+      frozen: '5 Oct 2026',
+      n: 8,
+      avg: 0.019876320513100967,
+      hit: 0.75,
+      worst: -0.005369390387553463,
+      best: 0.0687869005504187,
+      evidence: 'Eight manually reviewed official actions across both Trump terms. Historical average beat the broad market by about 0.67 percentage points.',
+      review: 'Highest research priority at present. The expanded official backfill reproduces the same eight-event pattern across both Trump terms. It still needs unseen future events before any real-money decision.',
+    },
+    {
+      key: 'tariff-rising-volatility-materials-5d-future',
+      title: 'Tariff action + rising volatility',
+      trigger: 'An official Presidential action titled “Adjusting Imports of …”, classified as a tariff escalation, with the VIX up more than 1 point over the previous five trading days',
+      symbol: 'XLB',
+      asset: 'US materials-sector fund',
+      hold: '5 trading days',
+      frozen: '6 Oct 2026',
+      n: 9,
+      avg: 0.02142,
+      hit: 7 / 9,
+      worst: -0.00755,
+      best: 0.06510,
+      evidence: 'Nine independent historical dates: average about +2.14%, positive in 7 of 9, with similar averages in the first and second Trump terms. Average relative performance versus the broad market was about +0.66 percentage points.',
+      review: 'Active context-conditioned rule. It is deliberately narrower than the older broad metals-tariff rule, which weakened when more history was added. Historical selection can still overfit, so this rule now has to prove itself on unseen events.',
+    },
+    {
       key: 'china-deescalation-semiconductors-5d-future',
       title: 'China trade de-escalation',
       trigger: 'A qualifying China-trade de-escalation event',
       symbol: 'SOXX',
       asset: 'Semiconductor fund',
       hold: '5 trading days',
+      frozen: '5 Oct 2026',
       n: 8,
       avg: 0.022432777534689903,
       hit: 0.875,
@@ -20,27 +53,13 @@
       review: 'Keep watching. The automated Federal Register layer has not yet reproduced enough directly comparable China de-escalation events to confirm or reject this rule independently.',
     },
     {
-      key: 'metals-escalation-materials-5d-future',
-      title: 'Metals tariff escalation',
-      trigger: 'A qualifying escalation in steel, aluminium or related metals tariffs',
-      symbol: 'XLB',
-      asset: 'US materials-sector fund',
-      hold: '5 trading days',
-      n: 5,
-      avg: 0.018992804772460614,
-      hit: 0.80,
-      worst: -0.00016603971579431942,
-      best: 0.03920238073754545,
-      evidence: 'The five-event curated sample was positive in both Trump terms.',
-      review: 'Lower priority. The broader official backfill found 14 matching metals-escalation dates with an average five-day XLB return close to 0% and only 57% positive. The rule stays frozen so we can test it fairly, but the larger history weakens the original case.',
-    },
-    {
       key: 'defense-support-defense-5d-future',
       title: 'Formal defence-support action',
       trigger: 'A qualifying formal US defence-support policy action',
       symbol: 'ITA',
       asset: 'US aerospace and defence fund',
       hold: '5 trading days',
+      frozen: '5 Oct 2026',
       n: 7,
       avg: 0.03239044269831483,
       hit: 5 / 7,
@@ -48,21 +67,6 @@
       best: 0.09395926986102365,
       evidence: 'The original discovery sample was mostly second-term evidence.',
       review: 'Keep watching, but confidence is limited. The broader official layer currently has too few directly matching defence-support actions to provide a useful independent check.',
-    },
-    {
-      key: 'infrastructure-support-industrials-3d-future',
-      title: 'Infrastructure / manufacturing support',
-      trigger: 'A qualifying formal US infrastructure or domestic-manufacturing support action',
-      symbol: 'XLI',
-      asset: 'US industrials fund',
-      hold: '3 trading days',
-      n: 8,
-      avg: 0.019876320513100967,
-      hit: 0.75,
-      worst: -0.005369390387553463,
-      best: 0.0687869005504187,
-      evidence: 'Eight manually reviewed official actions across both Trump terms. Historical average beat the broad market by about 0.67 percentage points.',
-      review: 'Highest research priority of the four at present. The expanded official backfill reproduces the same eight-event pattern across both Trump terms. It still needs unseen future events before any real-money decision.',
     },
   ];
 
@@ -97,7 +101,7 @@
     if (!root || !intro) return;
 
     const heading = document.querySelector('.long-only-heading h3');
-    if (heading) heading.textContent = 'Four frozen rules under review and future testing';
+    if (heading) heading.textContent = 'Four active long-only rules proving themselves on new events';
 
     const c = capital();
     const tradeCost = cost();
@@ -105,7 +109,7 @@
       ? ' Trading cost is currently set to A$0, so the net figures below are still optimistic.'
       : ` The figures subtract ${money(tradeCost)} per completed example.`;
 
-    intro.innerHTML = `<strong>Frozen on 5 Oct 2026:</strong> these four rules remain fixed so later evidence can strengthen or weaken them without moving the goalposts. The starting amount is <strong>${money(c)}</strong>.${costWarning}`;
+    intro.innerHTML = `<strong>Active shortlist:</strong> four fixed rules are being judged on new events. The older broad metals-tariff rule remains in the Research Trial Register for transparency but has been removed from the active shortlist because the expanded history weakened it. The starting amount is <strong>${money(c)}</strong>.${costWarning}`;
 
     root.innerHTML = RULES.map(rule => {
       const trial = futureTrial(rule.key);
@@ -129,6 +133,7 @@
         </div>
         <p><strong>Trigger:</strong> ${escapeHtml(rule.trigger)}.</p>
         <p><strong>Action being tested:</strong> buy ${escapeHtml(rule.asset)} (${escapeHtml(rule.symbol)}) and hold for ${escapeHtml(rule.hold)}.</p>
+        <p class="long-note"><strong>Frozen:</strong> ${escapeHtml(rule.frozen)}.</p>
         <div class="long-money">
           <div><span>Original historical average on ${money(c)}</span><strong>${money(historicalGross)}</strong></div>
           <div><span>After entered cost</span><strong class="${historicalNet >= 0 ? 'pos' : 'neg'}">${money(historicalNet)}</strong></div>
