@@ -76,6 +76,9 @@
       );
       const usable = rows.filter(r =>
         Number(r.base_event_count || 0) >= 8 &&
+        Number(r.base_average_return || 0) > 0 &&
+        Number(r.base_hit_rate || 0) >= 0.55 &&
+        Number(r.average_return || 0) > 0 &&
         Number(r.average_abnormal_return || 0) > 0 &&
         Number(r.beat_market_rate || 0) >= 0.60
       );
@@ -87,7 +90,7 @@
       const capital = cap();
 
       summary.innerHTML = display.length
-        ? `<strong>${display.length} context leads currently clear the display screen.</strong> These are conditions where an already-defined historical policy pattern looked stronger than its own overall average. They remain exploratory until tested on unseen events.`
+        ? `<strong>${display.length} context leads currently clear the display screen.</strong> These are conditions where an already-positive historical policy pattern looked stronger than its own overall average. They remain exploratory until tested on unseen events.`
         : `<strong>No context condition currently clears the display screen.</strong> That is a useful result: the present data does not justify adding a market-condition filter to a frozen rule.`;
 
       const top = display.slice(0, 3);
@@ -121,7 +124,7 @@
           <td>${pct(lift)}<div class="muted">Hit-rate change ${pct(r.hit_rate_lift)}</div></td>
           <td>${money(capital * avg)}<div class="muted">gross historical average</div></td>
         </tr>`;
-      }).join('') || '<tr><td colspan="8">No simple market condition has yet improved a sufficiently large policy pattern enough to display.</td></tr>';
+      }).join('') || '<tr><td colspan="8">No simple market condition has yet improved a sufficiently large positive policy pattern enough to display.</td></tr>';
     } catch (err) {
       console.warn('Market context view unavailable', err);
       summary.innerHTML = '<strong>Market-context data is temporarily unavailable.</strong>';
