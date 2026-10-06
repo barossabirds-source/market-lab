@@ -37,7 +37,7 @@
           <thead><tr><th>Policy pattern</th><th>Pre-event condition</th><th>Independent events</th><th>Average return</th><th>Positive</th><th>Beat broad market</th><th>Improvement vs base</th><th>A$ effect</th></tr></thead>
           <tbody id="contextRows"><tr><td colspan="8">Loading reviewed context summaries…</td></tr></tbody>
         </table></div>
-        <p class="footnote">Only simple one-factor conditions are tested. Automatic leads are not shown until their underlying events and classifications have been checked. This reduces the chance that an accidental historical pattern is mistaken for an investment rule.</p>`;
+        <p class="footnote">Only simple one-factor conditions are tested. Automatic leads are not shown until their underlying events and classifications have been checked. A manually reviewed lead can remain visible even when the unconditioned base pattern is weak, because the point of this screen is to test whether the pre-event condition materially changes the result. Reviewed leads are still not forecasts.</p>`;
       const historical = document.getElementById('historical-backfill');
       if (historical?.parentNode) historical.parentNode.insertBefore(section, historical.nextSibling);
       else document.querySelector('main')?.appendChild(section);
@@ -78,6 +78,7 @@
         'context_condition_summaries',
         'select=*&source_dataset=eq.federal_register_context_v1&event_count=gte.4&order=event_count.desc&limit=1000'
       );
+
       const automatic = rows.filter(r =>
         Number(r.base_event_count || 0) >= 8 &&
         Number(r.base_average_return || 0) > 0 &&
@@ -89,12 +90,24 @@
         Number(r.hit_rate_lift || 0) >= 0
       ).sort((a,b) => score(b) - score(a));
 
-      const reviewed = automatic.filter(r => ['watch', 'promising_reviewed'].includes(String(r.review_status || '')));
+      // Manual review is the final screen. A reviewed lead can remain visible even when
+      // the unconditioned base pattern was weak, provided the conditioned subgroup itself
+      // is positive and economically coherent after event-by-event inspection.
+      const reviewed = rows.filter(r =>
+        ['watch', 'promising_reviewed'].includes(String(r.review_status || '')) &&
+        Number(r.event_count || 0) >= 4 &&
+        Number(r.average_return || 0) > 0 &&
+        Number(r.average_abnormal_return || 0) > 0 &&
+        Number(r.beat_market_rate || 0) >= 0.55
+      ).sort((a,b) => score(b) - score(a));
+
       const display = reviewed.slice(0, 12);
       const capital = cap();
+      const reviewedKeys = new Set(display.map(r => String(r.summary_key || '')));
+      const hiddenAutomatic = automatic.filter(r => !reviewedKeys.has(String(r.summary_key || ''))).length;
 
       if (display.length) {
-        summary.innerHTML = `<strong>${display.length} manually reviewed context lead${display.length === 1 ? '' : 's'} currently remain on the board.</strong> Another ${Math.max(0, automatic.length - display.length)} automatic lead${Math.max(0, automatic.length - display.length) === 1 ? '' : 's'} are hidden until their underlying events are checked.`;
+        summary.innerHTML = `<strong>${display.length} manually reviewed context lead${display.length === 1 ? '' : 's'} currently remain on the board.</strong> Another ${hiddenAutomatic} automatic lead${hiddenAutomatic === 1 ? '' : 's'} are hidden until their underlying events are checked.`;
       } else if (automatic.length) {
         summary.innerHTML = `<strong>${automatic.length} automatic context lead${automatic.length === 1 ? '' : 's'} were found, but none are being promoted yet.</strong> They stay hidden until manual event review confirms that the pattern is coherent and the timing is investable.`;
       } else {
