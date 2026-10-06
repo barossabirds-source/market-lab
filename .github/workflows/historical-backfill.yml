@@ -13,6 +13,7 @@ on:
       - "scripts/refine_historical_discoveries.py"
       - "scripts/enrich_market_context.py"
       - "scripts/analyze_market_context.py"
+      - "scripts/apply_context_reviews.py"
       - "scripts/update_future_trials.py"
       - ".github/workflows/historical-backfill.yml"
 
@@ -58,6 +59,9 @@ jobs:
       - name: Analyse simple pre-event market conditions
         if: steps.secrets.outputs.ready == 'true'
         run: python scripts/analyze_market_context.py
+      - name: Reapply manual review decisions
+        if: steps.secrets.outputs.ready == 'true'
+        run: python scripts/apply_context_reviews.py
       - name: Update frozen trials that use official candidates
         if: steps.secrets.outputs.ready == 'true'
         run: python scripts/update_future_trials.py
