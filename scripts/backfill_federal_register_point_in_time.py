@@ -4,10 +4,10 @@ The base collector stores both signing_date and publication_date. For research i
 wrapper anchors automated market measurement to publication_date, because a signing date can
 precede Federal Register publication by several days.
 
-It also uses the close of the first trading session on or after publication as the hypothetical
-entry point. That deliberately gives up any same-day move. Without a verified intraday public
-release time, using the previous close would assume the investor could enter before the source
-was known and would create look-ahead bias.
+It then waits until the close of the next trading session after publication before starting a
+hypothetical position. That is intentionally conservative. With date-only source information,
+we cannot prove the document was public before the publication-day close. Waiting one full
+trading session removes that ambiguity and avoids look-ahead bias.
 
 Signing_date remains in candidate metadata for reference. If a separate White House source
 later proves an earlier public timestamp, that belongs in the curated point-in-time ledger.
@@ -41,26 +41,23 @@ def point_in_time_classify(doc):
     candidate["candidate_key"] = hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:24]
     candidate["classification_basis"] = (
         str(candidate.get("classification_basis") or "")
-        + " Market measurement anchored to Federal Register publication date. Automated strategy returns enter at the first market close on or after publication so the source is already public."
+        + " Market measurement anchored to Federal Register publication date. Automated strategy returns enter at the next trading-session close after publication because exact publication time is not stored."
     )
     return candidate
 
 
 def point_in_time_build_impacts(candidates, ids, close):
-    """Measure only returns available after a conservative end-of-session entry."""
+    """Measure returns only after a full trading session has passed since publication."""
     rows = []
     for candidate in candidates:
         cid = ids.get(candidate["candidate_key"])
         if not cid:
             continue
         event_date = base.pd.Timestamp(candidate["event_date"])
-        entry_pos = int(close.index.searchsorted(event_date, side="left"))
+        entry_pos = int(close.index.searchsorted(event_date, side="right"))
         if entry_pos >= len(close):
             continue
 
-        # Entry is the close of the first trading session on/after publication. A one-day
-        # result is therefore entry close to the next trading-day close, not previous close
-        # to publication-day close.
         for symbol, (asset_name, asset_group) in base.CORE_UNIVERSE.items():
             for horizon in base.HORIZONS:
                 exit_pos = entry_pos + horizon
@@ -92,7 +89,7 @@ def point_in_time_build_impacts(candidates, ids, close):
                     "abnormal_return": abnormal,
                     "pre_event_abnormal_return": pre_abnormal,
                     "reaction_vs_pre": reaction,
-                    "data_quality": "federal_register_publication_date_close_entry",
+                    "data_quality": "federal_register_next_session_close_entry",
                     "calculated_at": base.datetime.now(base.timezone.utc).isoformat(),
                 })
     return rows
@@ -101,8 +98,6 @@ def point_in_time_build_impacts(candidates, ids, close):
 def main() -> int:
     base.classify = point_in_time_classify
     base.build_impacts = point_in_time_build_impacts
-    # Raw automated summaries are fully regenerated. The refined discovery script separately
-    # clears and rebuilds its own generated slice.
     if base.SUPABASE_URL and base.SUPABASE_KEY:
         base.rest(
             "DELETE",
