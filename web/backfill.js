@@ -6,6 +6,15 @@
     return Number.isFinite(n) && n > 0 ? n : 2000;
   };
 
+  function ensureContextScript() {
+    if (!document.querySelector('script[src="/context_insights.js"]')) {
+      const script = document.createElement('script');
+      script.src = '/context_insights.js';
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+  }
+
   function ensureView() {
     if (!document.querySelector('link[href="/backfill.css"]')) {
       const link = document.createElement('link');
@@ -32,15 +41,16 @@
         </div>
         <div class="callout" id="backfillSummary">Loading historical backfill…</div>
         <div id="backfillMetrics" class="backfill-grid"></div>
-        <div class="discovery-note"><strong>Discovery queue:</strong> these patterns use predefined theme-relevant funds, same-day clustering and non-overlapping holding windows so unrelated funds and duplicate documents do not inflate the result. They still need manual event review before any rule is frozen.</div>
+        <div class="discovery-note"><strong>Discovery queue:</strong> these patterns use predefined theme-relevant funds, remove obvious routine renewals, cluster same-day documents and avoid overlapping holding windows. They still need manual event review before any rule is frozen.</div>
         <div class="table-wrap discovery-table"><table>
           <thead><tr><th>Theme</th><th>Fund</th><th>Hold</th><th>Independent events</th><th>Positive</th><th>Average</th><th>Worst</th><th>First / second term avg</th><th>Status</th></tr></thead>
           <tbody id="discoveryRows"><tr><td colspan="9">Loading exploratory patterns…</td></tr></tbody>
         </table></div>
-        <p class="footnote"><strong>Source and limitation:</strong> the automated layer uses official Federal Register Presidential Documents and signing dates where available. Theme and direction labels are transparent keyword-based guesses. The discovery table requires positive performance against the broad market, but that still does not prove causation or future profitability. Market backdrop records add pre-event volatility, US 10-year yield, oil, dollar and broad-market conditions for later comparison.</p>`;
+        <p class="footnote"><strong>Source and limitation:</strong> the automated layer uses official Federal Register Presidential Documents and signing dates where available. Theme and direction labels are transparent keyword-based guesses. Routine renewals are excluded from discovery because they are usually expected rather than new policy surprises. The discovery table also requires positive performance against the broad market, but that still does not prove causation or future profitability.</p>`;
       const long = document.getElementById('longitudinal');
       if (long?.parentNode) long.parentNode.insertBefore(section, long.nextSibling);
     }
+    ensureContextScript();
   }
 
   function rankDiscovery(d) {
@@ -87,7 +97,7 @@
       const ranked = allExploratory.sort((a,b) => rankDiscovery(b) - rankDiscovery(a)).slice(0, 12);
 
       summary.innerHTML = latest?.status === 'completed'
-        ? `<strong>Historical backfill complete.</strong> The automated layer scanned official Federal Register presidential documents, classified market-relevant candidates and measured 1, 3, 5 and 20 trading-day reactions. Discovery results are then restricted to relevant funds, de-duplicated and spaced so overlapping return windows are not counted repeatedly.`
+        ? `<strong>Historical backfill complete.</strong> The automated layer scanned official Federal Register presidential documents, classified market-relevant candidates and measured 1, 3, 5 and 20 trading-day reactions. Discovery results are restricted to relevant funds, obvious routine renewals are removed, and duplicate or overlapping observations are reduced.`
         : `<strong>Historical backfill status:</strong> ${escapeHtml(latest?.status || 'waiting')}. Candidate records are kept separate from the curated ledger.`;
 
       metrics.innerHTML = `
