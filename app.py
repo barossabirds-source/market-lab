@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from engine import load_prices, strategy_leaderboard, forward_dashboard, model_comparison_dashboard, forward_long_only_dashboard
-from event_study import trump_event_study, trump_theme_summary, source_direction_summary, surprise_summary, timing_summary
+from event_study import market_event_study, theme_summary, category_summary, source_direction_summary, surprise_summary, timing_summary, causal_screen
 
 FUND_NAMES = {
     "SPY":"Broad US Market (SPY)","QQQ":"Large US Technology (QQQ)","IWF":"US Growth Shares (IWF)",
@@ -40,7 +40,7 @@ st.set_page_config(page_title="Market Lab V6", page_icon="🧪", layout="wide")
 st.title("Market Lab V6")
 st.caption("Researching share-market strategies, simulated trading on new data, and market reactions to public events")
 
-CACHE_SCHEMA = "v6.5"
+CACHE_SCHEMA = "v6.6"
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def research(schema_version):
@@ -241,21 +241,26 @@ This is simpler to understand and execute, but it is more affected by whether th
 
 
 st.divider()
-st.subheader("Trump public-event study")
-st.caption("Researching whether different kinds of public events are followed by unusual market moves, while checking what happened before the event as well.")
+st.subheader("Market Event Impact Study")
+st.caption("Researching whether political, geopolitical, economic and company events are followed by repeatable market moves, while checking what happened before the event and whether other news could explain the move.")
 
-study=trump_event_study(prices)
+study=market_event_study(prices)
 if not study.empty:
     ec1,ec2,ec3,ec4=st.columns(4)
     ec1.metric("Events in the collection",study["date"].nunique())
     ec2.metric("Subject areas",study["theme"].nunique())
-    ec3.metric("Public comments/interviews",study.loc[study["source_type"]!="formal_action","date"].nunique())
+    ec3.metric("Event categories",study["event_category"].nunique())
     ec4.metric("Fund-event observations",len(study))
 
 if study.empty:
     st.info("No event-study results are available yet.")
 else:
-    h=st.selectbox("How many trading days after the event?",[1,3,5],index=0,format_func=lambda x:f"{x} trading day{'s' if x>1 else ''}",key="trump_horizon")
+    h=st.selectbox("How many trading days after the event?",[1,3,5],index=0,format_func=lambda x:f"{x} trading day{'s' if x>1 else ''}",key="market_event_horizon")
+
+    g1,g2,g3=st.columns(3)
+    category_filter=g1.multiselect("Event category",sorted(study["event_category"].unique()),default=sorted(study["event_category"].unique()))
+    actor_filter=g2.multiselect("Source / actor",sorted(study["source_actor"].unique()),default=sorted(study["source_actor"].unique()))
+    location_filter=g3.multiselect("Location",sorted(study["location"].unique()),default=sorted(study["location"].unique()))
 
     f1,f2,f3,f4=st.columns(4)
     source_filter=f1.multiselect("Type of event",sorted(study["source_type"].unique()),default=sorted(study["source_type"].unique()))
@@ -264,6 +269,9 @@ else:
     timing_filter=f4.multiselect("When did it happen?",sorted(study["market_session"].unique()),default=sorted(study["market_session"].unique()))
 
     filtered=study[
+        study["event_category"].isin(category_filter) &
+        study["source_actor"].isin(actor_filter) &
+        study["location"].isin(location_filter) &
         study["source_type"].isin(source_filter) &
         study["direction"].isin(direction_filter) &
         study["surprise_proxy"].isin(surprise_filter) &
@@ -271,7 +279,7 @@ else:
     ].copy()
 
     st.subheader("Market reaction by subject and share-market fund")
-    summary=trump_theme_summary(filtered,h)
+    summary=theme_summary(filtered,h)
     if summary.empty:
         st.info("No observations match the current filters.")
     else:
@@ -319,6 +327,13 @@ else:
             st.dataframe(sv[["market_session","events","observations","Avg abnormal return","Positive rate"]],use_container_width=True,hide_index=True)
         st.caption("Many older sources give a date but not a reliable time. Those events stay marked as unknown rather than being guessed.")
 
+    st.subheader("What could strengthen the causal case?")
+    screened=causal_screen(filtered,h)
+    if len(screened):
+        causal_counts=screened["causal_readiness"].value_counts().rename_axis("Evidence level").reset_index(name="Fund-event observations")
+        st.dataframe(causal_counts,use_container_width=True,hide_index=True)
+    st.caption("This is an evidence screen, not proof of cause. The strongest cases need reliable event timing, limited price movement before the event, and a review showing no major competing news at the same time.")
+
     st.subheader("Historical signal ledger")
     ledger_cols=["ledger_id","date","source_type","theme","direction","surprise_proxy","market_session","timing_confidence","baseline_date","first_reaction_date","ticker","baseline_price","benchmark"]
     ledger=filtered[[x for x in ledger_cols if x in filtered.columns]].drop_duplicates().sort_values(["date","ticker"],ascending=[False,True])
@@ -326,12 +341,12 @@ else:
     st.caption("Each row freezes the event classification and market baseline used for testing. Later market outcomes are measured against this record rather than being used to rewrite the event label.")
 
     st.subheader("Individual events")
-    events_view=filtered[["date","source_type","theme","direction","surprise_proxy","market_session","timing_confidence","summary"]].drop_duplicates().sort_values("date",ascending=False)
+    events_view=filtered[["date","event_category","source_actor","location","source_type","theme","direction","surprise_proxy","market_session","timing_confidence","competing_news_check","summary"]].drop_duplicates().sort_values("date",ascending=False)
     st.dataframe(events_view,use_container_width=True,hide_index=True)
 
     if len(events_view):
         choices=[f"{row.date.date()} | {row.theme} | {row.source_type}" for _,row in events_view.iterrows()]
-        chosen=st.selectbox("Inspect event",choices,key="trump_event_choice_smart")
+        chosen=st.selectbox("Inspect event",choices,key="market_event_choice_smart")
         chosen_idx=choices.index(chosen)
         chosen_date=events_view.iloc[chosen_idx]["date"]
         chosen_theme=events_view.iloc[chosen_idx]["theme"]
@@ -355,6 +370,10 @@ else:
 
 **Movement before the event** compares the selected share-market fund with the broad US market before the event. If it was already moving strongly beforehand, we should be more cautious about linking the later move to the event itself.
 
-This remains descriptive research. It does not establish causation or a reliable trading rule.
+The event collection can now include government decisions, political comments, geopolitical shocks, economic releases, company events and commodity disruptions.
+
+A geopolitical event such as an airport attack, shipping disruption or missile strike should only be added once its date, time and source are verified. The event can then be linked to the industries most likely to be affected, such as energy, airlines, defence or shipping.
+
+This remains research evidence. It does not establish causation or a reliable trading rule.
 """)
 
