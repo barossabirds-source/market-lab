@@ -1,5 +1,10 @@
 # Market Lab
 
+> **Primary application:** Netlify web dashboard at https://market-lab-trading.netlify.app  
+> **Data layer:** Supabase (to be connected for persistent event, market and signal history)  
+> **Source control and scheduled research jobs:** GitHub  
+> **Legacy prototype:** Streamlit/Python files remain in the repository for research and backup only.
+
 Market Lab is a research-first application for studying how public policy events are followed by different market reactions. It keeps event facts, proposed explanations, measured outcomes and simulated strategies separate.
 
 ## What changed in this version
@@ -17,7 +22,7 @@ Research ideas are registered before their outcomes are inspected. Live brokerag
 - **Supabase Free**: PostgreSQL storage for the event ledger, daily market observations, measured event reactions, trial register and sync history.
 - **Market prices**: downloaded by the GitHub workflow with `yfinance`; the source is recorded in the database.
 
-The older Streamlit research files remain in the repository for local analysis. Netlify serves the lightweight dashboard in `/web`.
+The older Streamlit research files remain in the repository for local analysis and backup only. Netlify is now the primary Market Lab interface and serves the dashboard in `/web`.
 
 ## 1. Create the Supabase database
 
