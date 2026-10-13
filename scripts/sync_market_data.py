@@ -1,6 +1,6 @@
 """Daily Market Lab data sync.
 
-Reads the frozen event ledger from repository CSV files, downloads daily market
+Reads the generic Market Event ledger plus legacy historical CSV files, downloads daily market
 prices, stores both in Supabase, and calculates transparent event reactions.
 This script deliberately does not create or send brokerage orders.
 """
@@ -90,23 +90,35 @@ def event_key(row: dict[str, str]) -> str:
 
 
 def load_events() -> list[dict[str, Any]]:
-    records: list[dict[str, str]] = []
-    for path in sorted(glob.glob("trump_events*.csv")):
+    """Load the generic event ledger, while retaining legacy CSVs for historical coverage."""
+    records_by_key: dict[str, dict[str, str]] = {}
+
+    # Legacy files are read first so a matching row in market_events.csv can
+    # enrich it with the newer generic event fields.
+    paths = sorted(glob.glob("trump_events*.csv"))
+    if os.path.exists("market_events.csv"):
+        paths.append("market_events.csv")
+
+    for path in paths:
         with open(path, newline="", encoding="utf-8") as f:
-            records.extend(csv.DictReader(f))
-    seen: set[str] = set()
+            for row in csv.DictReader(f):
+                records_by_key[event_key(row)] = row
+
+    records = list(records_by_key.values())
     out: list[dict[str, Any]] = []
     theme_counts: dict[str, int] = {}
     for row in sorted(records, key=lambda r: (clean(r.get("date")), clean(r.get("theme")), clean(r.get("summary")))):
         key = event_key(row)
-        if key in seen:
-            continue
-        seen.add(key)
         theme = clean(row.get("theme"), "unknown")
         theme_counts[theme] = theme_counts.get(theme, 0) + 1
         occurrence = theme_counts[theme]
         symbols = [x.strip() for x in clean(row.get("etfs")).split(";") if x.strip()]
         source_url = clean(row.get("source"))
+        source_actor = clean(row.get("source_actor"), "Donald Trump" if "whitehouse.gov" in source_url else "unknown")
+        event_category = clean(
+            row.get("event_category"),
+            "public_comment" if clean(row.get("source_type")) in {"public_remarks", "interview"} else "government_policy",
+        )
         out.append({
             "event_key": key,
             "event_date": clean(row.get("date")),
@@ -114,12 +126,19 @@ def load_events() -> list[dict[str, Any]]:
             "available_at": None,
             "event_type": clean(row.get("event_type"), "unknown"),
             "source_type": clean(row.get("source_type"), "unknown"),
+            "source_actor": source_actor,
+            "event_category": event_category,
             "policy_theme": theme,
+            "location": clean(row.get("location"), "unknown"),
             "direction": clean(row.get("direction"), "unknown"),
             "surprise_level": clean(row.get("surprise_proxy"), "unknown"),
             "surprise_basis": clean(row.get("surprise_basis")),
             "market_session": clean(row.get("market_session"), "unknown"),
             "timing_confidence": clean(row.get("timing_confidence"), "low"),
+            "affected_industries": clean(row.get("affected_industries")),
+            "expected_market_effect": clean(row.get("expected_market_effect"), "uncertain"),
+            "competing_news_check": clean(row.get("competing_news_check"), "not_reviewed"),
+            "competing_news_notes": clean(row.get("competing_news_notes")),
             "summary": clean(row.get("summary")),
             "source_name": "White House" if "whitehouse.gov" in source_url else "Public source",
             "source_url": source_url or None,
