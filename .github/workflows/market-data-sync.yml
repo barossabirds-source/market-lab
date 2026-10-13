@@ -12,6 +12,7 @@ on:
       - "market_events.csv"
       - "scripts/sync_market_data.py"
       - "scripts/update_future_trials.py"
+      - "scripts/sync_strategy_signals.py"
       - ".github/workflows/market-data-sync.yml"
 
 permissions:
@@ -50,3 +51,6 @@ jobs:
       - name: Update future-only validation trials
         if: steps.secrets.outputs.ready == 'true'
         run: python scripts/update_future_trials.py
+      - name: Persist simulated strategy signals
+        if: steps.secrets.outputs.ready == 'true'
+        run: python scripts/sync_strategy_signals.py
