@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - "trump_events*.csv"
+      - "market_events.csv"
       - "scripts/sync_market_data.py"
       - "scripts/update_future_trials.py"
       - ".github/workflows/market-data-sync.yml"
