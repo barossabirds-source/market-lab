@@ -14,6 +14,7 @@ writeFileSync(
 );
 
 for (const [src, dest] of [
+  ['market_events.csv', 'web/data/market_events.csv'],
   ['trump_events.csv', 'web/data/trump_events.csv'],
   ['trump_events_additions.csv', 'web/data/trump_events_additions.csv'],
 ]) {
