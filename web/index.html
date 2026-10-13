@@ -21,16 +21,49 @@
   </header>
 
   <nav class="nav" aria-label="Market Lab sections">
-    <a href="#overview">Overview</a>
-    <a href="#executive">Executive Summary</a>
-    <a href="#longitudinal">Longitudinal Trends</a>
-    <a href="#impact-map">Market Event Impact</a>
-    <a href="#ledger">Event Ledger</a>
-    <a href="#trials">Research Trials</a>
-    <a href="#simulation">Simulation</a>
+    <a href="#today">Today</a>
+    <a href="#executive">Patterns worth watching</a>
+    <a href="#impact-map">What moved after an event</a>
+    <a href="#trials">Ideas being tested</a>
+    <a href="#evidence-detail">Explore the evidence</a>
   </nav>
 
   <main>
+    <section id="today" class="section panel decision-panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">START HERE</p><h2>Market Lab today</h2></div>
+        <p class="section-note">A quick answer to three questions: what changed, what patterns are becoming interesting, and what the simulated strategies would do now.</p>
+      </div>
+      <div class="today-grid">
+        <article class="today-card">
+          <span>Latest market data</span>
+          <strong id="todayMarketDate">Checking…</strong>
+          <p id="todayMarketNote">Looking for the latest stored market information.</p>
+        </article>
+        <article class="today-card">
+          <span>Simulated strategy signals</span>
+          <strong id="todaySignalSummary">Checking…</strong>
+          <p id="todaySignalNote">Looking for changes in the fixed strategies.</p>
+        </article>
+        <article class="today-card">
+          <span>Patterns worth attention</span>
+          <strong id="todayPatternCount">Checking…</strong>
+          <p id="todayPatternNote">Assessing the ideas being tested.</p>
+        </article>
+      </div>
+      <div class="attention-box">
+        <h3>What deserves attention?</h3>
+        <div id="attentionItems"><p class="muted">Building the plain-English summary…</p></div>
+      </div>
+      <p class="footnote">Market Lab is research software. “Interesting” means worth further testing, not a recommendation to trade.</p>
+    </section>
+
+    <section id="evidence-detail" class="section evidence-divider">
+      <p class="eyebrow">EXPLORE THE EVIDENCE</p>
+      <h2>Detailed research</h2>
+      <p class="section-note">Everything below explains why Market Lab reached the summary above. You do not need to read every table to use the dashboard.</p>
+    </section>
+
     <section id="overview" class="section">
       <div class="section-heading">
         <div><p class="eyebrow">WHAT THE LAB KNOWS</p><h2>Overview</h2></div>
@@ -47,8 +80,8 @@
 
     <section id="executive" class="section panel">
       <div class="section-heading">
-        <div><p class="eyebrow">WHAT THE RESULTS MEAN</p><h2>Executive Summary & A$ Scenarios</h2></div>
-        <p class="section-note">Turns the measured evidence into plain-English findings and shows what the historical moves would mean for a small hypothetical position.</p>
+        <div><p class="eyebrow">WHAT THE RESULTS MEAN</p><h2>Patterns worth watching</h2></div>
+        <p class="section-note">Shows the clearest patterns Market Lab has found so far, in plain English. The A$ examples are illustrations only.</p>
       </div>
       <div class="exec-toolbar">
         <div>
@@ -78,7 +111,7 @@
 
     <section id="longitudinal" class="section panel">
       <div class="section-heading">
-        <div><p class="eyebrow">HOW THE PATTERN CHANGES</p><h2>Longitudinal Trends</h2></div>
+        <div><p class="eyebrow">HOW THE PATTERN CHANGES</p><h2>How the pattern has changed over time</h2></div>
         <p class="section-note">Looks across time rather than treating each event as an isolated case. This helps show whether a market response is strengthening, fading or changing direction.</p>
       </div>
       <div class="callout" id="longitudinalSummary">Calculating changes through time…</div>
@@ -87,7 +120,7 @@
         <table>
           <thead><tr>
             <th>Event date</th>
-            <th>Policy theme</th>
+            <th>Event theme</th>
             <th>Net A$ result after entered cost</th>
             <th>Six-month net average</th>
             <th>Running net sum of fixed A$ examples</th>
@@ -151,22 +184,22 @@
 
     <section id="trials" class="section panel">
       <div class="section-heading">
-        <div><p class="eyebrow">PRE-REGISTER BEFORE TESTING</p><h2>Research Trial Register</h2></div>
-        <p class="section-note">A hypothesis is written down before its result is inspected. This helps stop accidental cherry-picking.</p>
+        <div><p class="eyebrow">PRE-REGISTER BEFORE TESTING</p><h2>Ideas being tested</h2></div>
+        <p class="section-note">These are ideas Market Lab is checking. An idea stays here until there is enough evidence to take it more seriously.</p>
       </div>
-      <div class="callout"><strong>Promotion rule:</strong> a trial stays out of simulated strategy testing until it shows repeated support across at least 20 qualifying events and then holds up on data that was not used to judge the idea.</div>
+      <div class="callout"><strong>When does an idea become more credible?</strong> It needs repeated support across at least 20 relevant events and must still work on data that was not used to develop the idea.</div>
       <div id="trialCards" class="trial-grid"></div>
     </section>
 
     <section id="simulation" class="section panel">
       <div class="section-heading">
-        <div><p class="eyebrow">ONLY AFTER THE EVIDENCE</p><h2>Simulated Strategy Gate</h2></div>
+        <div><p class="eyebrow">ONLY AFTER THE EVIDENCE</p><h2>When a strategy is ready for simulation</h2></div>
       </div>
       <div class="gate-grid">
-        <div class="gate"><span>1</span><strong>Register the idea</strong><p>State the rule before testing it.</p></div>
-        <div class="gate"><span>2</span><strong>Repeated historical tests</strong><p>Check different periods and trading costs.</p></div>
-        <div class="gate"><span>3</span><strong>Unseen-data test</strong><p>Use historical or later data that was not used to choose or judge the rule.</p></div>
-        <div class="gate"><span>4</span><strong>New-data simulation</strong><p>Record what the fixed rule would do on genuinely new data.</p></div>
+        <div class="gate"><span>1</span><strong>Write down the idea</strong><p>State the rule before testing it.</p></div>
+        <div class="gate"><span>2</span><strong>Test it many times</strong><p>Check different periods and trading costs.</p></div>
+        <div class="gate"><span>3</span><strong>Test it on unseen data</strong><p>Use historical or later data that was not used to choose or judge the rule.</p></div>
+        <div class="gate"><span>4</span><strong>Follow it on new data</strong><p>Record what the fixed rule would do on genuinely new data.</p></div>
       </div>
       <div class="safety-box"><strong>No live trading connection.</strong> Market Lab does not place brokerage orders. A strategy only reaches simulation after passing the research gates.</div>
     </section>
