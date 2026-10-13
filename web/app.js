@@ -132,7 +132,7 @@ function parseCsv(text) {
 }
 
 async function loadCsvEvents() {
-  const files=['/data/trump_events.csv','/data/trump_events_additions.csv'];
+  const files=['/data/market_events.csv','/data/trump_events.csv','/data/trump_events_additions.csv'];
   const chunks=[];
   for (const path of files) {
     try { const r=await fetch(path); if(r.ok) chunks.push(...parseCsv(await r.text())); } catch (_) {}
@@ -142,12 +142,19 @@ async function loadCsvEvents() {
     event_date:e.date,
     event_type:e.event_type,
     source_type:e.source_type,
+    source_actor:e.source_actor || (e.source?.includes('whitehouse.gov') ? 'Donald Trump' : 'Unknown'),
+    event_category:e.event_category || (['public_remarks','interview'].includes(e.source_type) ? 'public_comment' : 'government_policy'),
+    location:e.location || 'Unknown',
     policy_theme:e.theme,
     direction:e.direction,
     surprise_level:e.surprise_proxy,
     surprise_basis:e.surprise_basis,
     market_session:e.market_session,
     timing_confidence:e.timing_confidence,
+    affected_industries:e.affected_industries || '',
+    expected_market_effect:e.expected_market_effect || 'uncertain',
+    competing_news_check:e.competing_news_check || 'not_reviewed',
+    competing_news_notes:e.competing_news_notes || '',
     summary:e.summary,
     source_url:e.source,
     source_name:e.source?.includes('whitehouse.gov')?'White House':'Source',
@@ -190,7 +197,7 @@ function render() {
   $('metricSync').textContent=state.syncRuns[0]?.finished_at ? dateText(state.syncRuns[0].finished_at) : 'Not synced yet';
   $('dataMessage').innerHTML=state.connected
     ? 'Market Lab is reading the persistent research ledger and measured market reactions from Supabase.'
-    : '<strong>The event ledger is working from the repository.</strong> Add the Supabase URL and publishable key in Netlify to turn on persistent reaction data and the full Policy Impact Map.';
+    : '<strong>The event ledger is working from the repository.</strong> Add the Supabase URL and publishable key in Netlify to turn on persistent reaction data and the full Market Event Impact Study.';
   buildFilters(); renderLedger(); renderImpact(); renderTrials();
 }
 
@@ -205,7 +212,7 @@ function buildFilters() {
 function renderLedger() {
   const q=$('ledgerSearch').value.trim().toLowerCase(), theme=$('themeFilter').value;
   const rows=state.events.filter(e=>{
-    const hay=`${e.summary} ${e.policy_theme} ${e.direction} ${e.source_type}`.toLowerCase();
+    const hay=`${e.summary} ${e.policy_theme} ${e.direction} ${e.source_type} ${e.source_actor||''} ${e.event_category||''} ${e.location||''}`.toLowerCase();
     return (!q || hay.includes(q)) && (!theme || e.policy_theme===theme);
   }).slice(0,150);
   $('ledgerRows').innerHTML=rows.map(e=>`<tr>
@@ -223,8 +230,13 @@ async function renderImpact() {
   const timingWarning = String(event.market_session || 'unknown').toLowerCase() === 'unknown'
     ? '<div class="callout"><strong>Timing uncertain:</strong> the exact announcement time is not known, so the one-day reaction may include market movement that happened before the announcement.</div>'
     : '';
+  const actor = event.source_actor && event.source_actor !== 'unknown' ? event.source_actor : 'Source not classified';
+  const location = event.location && event.location !== 'unknown' ? event.location : 'Location not classified';
+  const category = event.event_category && event.event_category !== 'unknown' ? pretty(event.event_category) : 'Event category not classified';
+  const competing = String(event.competing_news_check || 'not_reviewed').replaceAll('_',' ');
   $('eventCard').innerHTML=`<h3>${escapeHtml(event.summary||'')}</h3><p>${escapeHtml(dateText(event.event_date))} · ${escapeHtml(pretty(event.policy_theme||''))}</p>
-    <div class="badges"><span class="badge">${escapeHtml(pretty(event.source_type||''))}</span><span class="badge">${escapeHtml(directionLabel(event.direction))}</span><span class="badge">${escapeHtml(surpriseLabel(event.surprise_level))}</span><span class="badge">${escapeHtml(timingLabel(event.market_session))}</span></div>${timingWarning}`;
+    <div class="badges"><span class="badge">${escapeHtml(category)}</span><span class="badge">${escapeHtml(actor)}</span><span class="badge">${escapeHtml(location)}</span><span class="badge">${escapeHtml(pretty(event.source_type||''))}</span><span class="badge">${escapeHtml(directionLabel(event.direction))}</span><span class="badge">${escapeHtml(surpriseLabel(event.surprise_level))}</span><span class="badge">${escapeHtml(timingLabel(event.market_session))}</span></div>
+    <p class="muted">Competing-news review: ${escapeHtml(pretty(competing))}${event.affected_industries ? ` · Likely affected: ${escapeHtml(event.affected_industries)}` : ''}</p>${timingWarning}`;
   const horizon=$('horizonSelect').value;
   const cacheKey=`${event.id}|${horizon}`;
   let rows=state.impactCache.get(cacheKey) || [];
