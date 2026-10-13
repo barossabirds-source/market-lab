@@ -1,5 +1,5 @@
 const cfg = window.MARKET_LAB_CONFIG || {};
-const state = { events: [], trials: [], syncRuns: [], connected: false, impactCache: new Map() };
+const state = { events: [], trials: [], syncRuns: [], strategySnapshots: [], connected: false, impactCache: new Map() };
 
 const $ = (id) => document.getElementById(id);
 const pct = (v) => v === null || v === undefined || Number.isNaN(Number(v)) ? '—' : `${(Number(v) * 100).toFixed(2)}%`;
@@ -166,12 +166,13 @@ async function loadData() {
   const canConnect=Boolean(cfg.supabaseUrl && cfg.supabasePublishableKey);
   if (canConnect) {
     try {
-      const [events,trials,syncRuns]=await Promise.all([
+      const [events,trials,syncRuns,strategySnapshots]=await Promise.all([
         supabaseGet('events','select=*&order=event_date.desc&limit=250'),
         supabaseGet('research_trials','select=*&order=registered_at.desc&limit=100'),
         supabaseGet('sync_runs','select=*&order=started_at.desc&limit=5'),
+        supabaseGet('strategy_snapshots','select=*&order=observed_on.desc,recorded_at.desc&limit=30'),
       ]);
-      state.events=events; state.trials=trials; state.syncRuns=syncRuns; state.connected=true;
+      state.events=events; state.trials=trials; state.syncRuns=syncRuns; state.strategySnapshots=strategySnapshots; state.connected=true;
     } catch (err) {
       console.warn('Supabase unavailable; using repository event ledger.', err);
     }
@@ -189,6 +190,78 @@ function defaultTrials() {
   ];
 }
 
+
+function latestStrategyRows() {
+  const seen=new Set(), out=[];
+  for (const row of state.strategySnapshots) {
+    const key=`${row.model_type}|${row.pair_key}`;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(row);
+  }
+  return out;
+}
+
+function plainSignal(signal='') {
+  const s=String(signal||'').toUpperCase();
+  if (s.includes('ENTER')) return 'Enter simulated trade';
+  if (s.includes('EXIT')) return 'Close simulated trade';
+  if (s.includes('HOLD')) return 'Keep current simulated trade';
+  if (s.includes('WAIT') || s.includes('FLAT')) return 'Wait';
+  return signal ? pretty(signal) : 'No signal recorded';
+}
+
+function renderToday() {
+  const latestSync=state.syncRuns[0];
+  const latestDate=latestSync?.finished_at || latestSync?.started_at;
+  $('todayMarketDate').textContent=latestDate ? dateText(latestDate) : 'Not available yet';
+  $('todayMarketNote').textContent=latestSync?.status === 'completed'
+    ? 'The latest stored research update completed successfully.'
+    : 'The latest update has not yet been confirmed as complete.';
+
+  const latest=latestStrategyRows().filter(x=>x.model_type==='two_fund');
+  if (!latest.length) {
+    $('todaySignalSummary').textContent='Signal history starting';
+    $('todaySignalNote').textContent='The new persistent signal record has been created but has not stored its first daily snapshot yet.';
+  } else {
+    const actionRows=latest.filter(x=>/ENTER|EXIT/i.test(String(x.signal||'')));
+    $('todaySignalSummary').textContent=actionRows.length ? `${actionRows.length} action signal${actionRows.length===1?'':'s'}` : 'No action signals';
+    $('todaySignalNote').textContent=actionRows.length
+      ? actionRows.map(x=>`${x.pair_key}: ${plainSignal(x.signal)}`).join(' · ')
+      : 'The fixed two-fund strategies currently indicate wait or hold.';
+  }
+
+  const interesting=state.trials.filter(t=>['Some support','Strong repeated support','Unseen-data test passed','Eligible for simulated strategy testing'].includes(evidenceStatus(t)));
+  $('todayPatternCount').textContent=interesting.length ? `${interesting.length} worth watching` : 'No strong pattern yet';
+  $('todayPatternNote').textContent=interesting.length
+    ? 'These ideas have more support than the rest, but still need the stated research checks.'
+    : 'The current ideas remain early, mixed or too small to rely on.';
+
+  const items=[];
+  if (latest.length) {
+    for (const row of latest) {
+      const action=plainSignal(row.signal);
+      const cls=/Enter|Close/.test(action)?'attention-warn':'attention-calm';
+      items.push(`<div class="attention-item ${cls}"><strong>${escapeHtml(row.pair_key)}</strong><span>${escapeHtml(action)} · distance from normal ${Number(row.latest_z).toFixed(2)} · simulated return ${signedPct(row.forward_return)}</span></div>`);
+    }
+  } else {
+    items.push('<div class="attention-item attention-calm"><strong>Simulated strategies</strong><span>No daily strategy snapshot has been stored yet. This is an infrastructure status, not a trading signal.</span></div>');
+  }
+
+  if (interesting.length) {
+    for (const t of interesting.slice(0,2)) {
+      items.push(`<div class="attention-item attention-watch"><strong>${escapeHtml(pretty(t.policy_theme||'Research pattern'))}</strong><span>${escapeHtml(shorten(trialResultText(t),180))}</span></div>`);
+    }
+  } else {
+    items.push('<div class="attention-item attention-calm"><strong>Research patterns</strong><span>No tested idea currently has enough evidence to deserve special attention.</span></div>');
+  }
+
+  const recentEvent=state.events[0];
+  if (recentEvent) {
+    items.push(`<div class="attention-item attention-info"><strong>Latest recorded event</strong><span>${escapeHtml(dateText(recentEvent.event_date))}: ${escapeHtml(shorten(recentEvent.summary,180))}</span></div>`);
+  }
+  $('attentionItems').innerHTML=items.join('');
+}
+
 function render() {
   $('connectionStatus').textContent=state.connected?'Supabase data connected':'Repository ledger mode';
   $('metricEvents').textContent=state.events.length.toLocaleString();
@@ -198,7 +271,7 @@ function render() {
   $('dataMessage').innerHTML=state.connected
     ? 'Market Lab is reading the persistent research ledger and measured market reactions from Supabase.'
     : '<strong>The event ledger is working from the repository.</strong> Add the Supabase URL and publishable key in Netlify to turn on persistent reaction data and the full Market Event Impact Study.';
-  buildFilters(); renderLedger(); renderImpact(); renderTrials();
+  renderToday(); buildFilters(); renderLedger(); renderImpact(); renderTrials();
 }
 
 function buildFilters() {
