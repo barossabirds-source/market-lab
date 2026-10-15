@@ -16,6 +16,7 @@
     const cards=[['Stored ASX session records',details.sessions??'—'],['Latest stored session',details.latest_session??'Awaiting first collection'],['ASX study storage',mb(details.study_bytes)],['Whole database storage',mb(details.database_bytes)]];
     metrics.innerHTML=cards.map(([label,value])=>`<article class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></article>`).join('');
     const time=new Date(prices.checked_at).toLocaleString('en-AU',{timeZone:'Australia/Adelaide'});
-    note.textContent=`Last attempt: ${time} Adelaide time. ${spi?.message||'SPI futures feed is not configured.'} Collection runs after the Australian close, not as a live alert service. Minute-bar prices are research estimates; they do not establish executable entry prices. No automatic result is eligible for the fixed rule yet. Raw provider observations are private. Storage figures were measured at the last successful run; they are not a quota estimate.`;
+    const batch=prices.details||{};
+    note.textContent=`Last attempt: ${time} Adelaide time. Latest batch: ${batch.attempted_sessions??'—'} sessions checked; ${batch.sessions_with_gaps??'—'} have missing US or ETF price observations. ${spi?.message||'SPI futures feed is not configured.'} Collection runs after the Australian close, not as a live alert service. Minute-bar prices are research estimates; they do not establish executable entry prices. No automatic result is eligible for the fixed rule yet. Raw provider observations are private. Storage figures were measured at the last successful run; they are not a quota estimate.`;
   }catch(error){status.textContent='Could not read automatic collection status. Check the collection job; CSV analysis remains available.';}
 })();
