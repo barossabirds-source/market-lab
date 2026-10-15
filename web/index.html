@@ -63,6 +63,10 @@
       <div class="section-heading"><div><p class="eyebrow">NEW RESEARCH QUESTION</p><h2>Does the ASX keep rising after you can buy?</h2></div></div>
       <p>Test whether a positive Wall Street session and rising SPI futures predict an Australian ETF gain after entry. The opening jump is measured separately from the return you could earn.</p>
       <div class="callout"><strong>Rule recorded 16 October 2026:</strong> S&amp;P 500 return above 0% and SPI futures change at least +0.5%, observed at 9:30 am Sydney time. Enter one ASX ETF at 10:05 am and exit at 3:55 pm on the same session. Use the same ETF and data source throughout. Future observations are kept separate from earlier history.</div>
+      <div class="callout" id="asxAutoStatus" role="status">Checking automatic collection…</div>
+      <div class="metric-grid" id="asxAutoMetrics"></div>
+      <p id="asxAutoNote" class="footnote"></p>
+      <details><summary>Analyse a CSV separately</summary>
       <div class="exec-inputs asx-controls">
         <label>Research amount (A$)<input id="asxCapital" type="number" min="100" step="100" value="2000"></label>
         <label>Round-trip brokerage (A$)<input id="asxBrokerage" type="number" min="0" step="0.10" value="10"></label>
@@ -70,8 +74,9 @@
         <label>Import observed sessions (CSV)<input id="asxFile" type="file" accept=".csv,text/csv"></label>
       </div>
       <p><a href="/asx-observations-template.csv" download>Download the empty data template</a> · <a href="/asx-data-guide.html" target="_blank" rel="noopener">Data fields and collection guide</a></p>
-      <div id="asxStatus" class="callout" role="status">Awaiting data. No SPI or intraday ASX feed is connected. Existing daily closing prices cannot answer this question.</div>
+      <div id="asxStatus" class="callout" role="status">No CSV imported. Automatic collection status is shown above. Only verified timestamped observations belong in this separate CSV study.</div>
       <div id="asxResults"></div>
+      </details>
       <p class="footnote">Imports are analysed in this browser tab and are not uploaded or saved. Include every observed session, including days without a signal, for a useful comparison. Results depend on the supplied observations and are not independently verified. Amounts use fractional exposure for comparison; tax and whole-unit rounding are excluded. Costs are assumptions, not broker quotes. Historical association does not establish causation.</p>
     </section>
 
@@ -227,6 +232,7 @@
   <script src="/app.js"></script>
   <script src="/asx-study.js"></script>
   <script src="/asx-ui.js"></script>
+  <script src="/asx-auto.js"></script>
   <script src="/executive.js"></script>
   <script src="/longitudinal.js"></script>
   <script src="/long_only.js"></script>

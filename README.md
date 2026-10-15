@@ -96,3 +96,15 @@ Run calculation checks with `node --test tests/asx-study.test.cjs`.
 ### Strategy recording repair
 
 The daily job must run `python -m scripts.sync_strategy_signals` from the repository root. Directly running the script by path excludes the root from Python's module search and failed to import `engine`. Signal persistence now runs even if another research step fails, unless the workflow is cancelled or secrets are missing. Empty downloads or empty generated snapshots fail explicitly. A completed research sync is distinct from successful strategy recording.
+
+## Automatic ASX research collection
+
+`ASX overnight research collection` runs at 07:20 UTC on weekdays, after the Australian close in both daylight-saving regimes. It uses the existing database secrets and needs no new free-source API key. It fetches five recent sessions of A200.AX minute bars and the latest completed S&P 500 daily closes through yfinance. Exchange calendars align US closes, Australian sessions, holidays and early closes; the signal cut-off uses Australia/Sydney. GitHub schedules can be delayed; this is after-close research, not an execution clock or live alert service.
+
+Only the 10:05 / 15:55 bar opens, first traded opening-minute proxy, previous ETF close and US session return/timestamps are retained. The full intraday response is discarded. Missing exact minutes and zero-volume bars remain missing; no forward fill is used. Intraday bars are **not executable quotes** and the first bar is **not a verified opening auction**. SPI remains explicitly unconnected. These automatic rows never enter the strict CSV signal study. A licensed SPI feed and verified execution/auction source are still required before the full fixed rule can run automatically.
+
+`supabase/asx_feed_schema.sql` installs the compact tables and service-only storage-measurement RPC. Raw source observations are private: browser roles have no SELECT or write grant. The dashboard reads only collection status, counts, latest session and measured storage sizes. First acquisition is retained using a unique session/symbol/source key and insert-ignore semantics, so retries do not overwrite data or add duplicates. Repairing a first-capture gap needs an explicitly reviewed new source/version; retained history is not silently revised. Operational records are upserted by feed key, not appended indefinitely. No tick archive or large API payloads are stored.
+
+Storage shown in the app includes table/index overhead for the two ASX tables and whole-database bytes. These are measurements, not a provider-plan quota calculation. Monitor database growth across all research features, including existing event histories. Free source failures and rate limiting are visible as collection errors. No paid subscription or brokerage connection was created.
+
+Run collector checks: `python -m unittest discover -s tests -p 'test_asx_feed.py'`. Install its pinned direct dependencies from `requirements-asx-feed.txt`.

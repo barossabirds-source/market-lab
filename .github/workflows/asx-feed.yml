@@ -1,0 +1,32 @@
+name: ASX overnight research collection
+on:
+  workflow_dispatch:
+  schedule:
+    # After ASX close in both Sydney time regimes. Delay is acceptable for research.
+    - cron: '20 7 * * 1-5'
+  push:
+    branches: [main]
+    paths:
+      - scripts/collect_asx_feed.py
+      - .github/workflows/asx-feed.yml
+permissions:
+  contents: read
+concurrency:
+  group: asx-research-collection
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements-asx-feed.txt
+      - run: python -m unittest discover -s tests -p 'test_asx_feed.py'
+      - run: python -m scripts.collect_asx_feed
