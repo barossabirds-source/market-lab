@@ -84,3 +84,15 @@ streamlit run app.py
 ## Safety
 
 Market Lab is research software. It does not place live orders. Historical performance and event associations do not establish future profitability.
+
+## Overnight Wall Street → ASX study
+
+The dashboard's **Overnight ASX study** tests a fixed rule recorded on 16 October 2026: positive S&P 500 close-to-close return and SPI futures up at least 0.5% at 09:30 Australia/Sydney; enter a single ASX ETF at 10:05 and exit at 15:55. It separates the opening gap from tradable post-entry returns.
+
+No SPI or Australian intraday feed is connected. Import observed sessions using `web/asx-observations-template.csv`; field definitions, sourcing limitations and calculation details are in `web/asx-data-guide.html`. Imports remain in memory in the browser tab and are not uploaded or persisted. Include non-signal sessions for the comparator. Earlier history and the prospective rule period are reported separately; neither an import nor the date split certifies point-in-time integrity.
+
+Run calculation checks with `node --test tests/asx-study.test.cjs`.
+
+### Strategy recording repair
+
+The daily job must run `python -m scripts.sync_strategy_signals` from the repository root. Directly running the script by path excludes the root from Python's module search and failed to import `engine`. Signal persistence now runs even if another research step fails, unless the workflow is cancelled or secrets are missing. Empty downloads or empty generated snapshots fail explicitly. A completed research sync is distinct from successful strategy recording.

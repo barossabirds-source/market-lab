@@ -112,11 +112,16 @@ def main() -> int:
         raise RuntimeError("Supabase server-side credentials are required")
 
     prices = load_prices()
+    if prices.empty:
+        raise RuntimeError("Market price download returned no usable rows; no snapshots saved")
     pair_results = forward_dashboard(prices)
     buy_only_results = forward_long_only_dashboard(prices)
 
     snapshots = snapshot_rows("two_fund", pair_results) + snapshot_rows("buy_only", buy_only_results)
     events = event_rows("two_fund", pair_results) + event_rows("buy_only", buy_only_results)
+
+    if not snapshots:
+        raise RuntimeError("No strategy snapshots were generated; check price coverage and configured pairs")
 
     if snapshots:
         rest(

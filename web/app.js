@@ -220,12 +220,13 @@ function renderToday() {
 
   const latest=latestStrategyRows().filter(x=>x.model_type==='two_fund');
   if (!latest.length) {
-    $('todaySignalSummary').textContent='Signal history starting';
-    $('todaySignalNote').textContent='The new persistent signal record has been created but has not stored its first daily snapshot yet.';
+    $('todaySignalSummary').textContent='Signal recording needs attention';
+    $('todaySignalNote').textContent='No daily strategy snapshot is available. A successful research update does not confirm that strategy recording succeeded.';
   } else {
+    const stale=latest.some(x=>!x.observed_on || Date.now()-Date.parse(x.observed_on+'T23:59:59Z')>4*86400000);
     const actionRows=latest.filter(x=>/ENTER|EXIT/i.test(String(x.signal||'')));
-    $('todaySignalSummary').textContent=actionRows.length ? `${actionRows.length} action signal${actionRows.length===1?'':'s'}` : 'No action signals';
-    $('todaySignalNote').textContent=actionRows.length
+    $('todaySignalSummary').textContent=stale ? 'Stored signals may be stale' : actionRows.length ? `${actionRows.length} action signal${actionRows.length===1?'':'s'}` : 'No action signals';
+    $('todaySignalNote').textContent=stale ? 'One or more stored signals are over four calendar days old. Check the daily sync before interpreting them.' : actionRows.length
       ? actionRows.map(x=>`${x.pair_key}: ${plainSignal(x.signal)}`).join(' · ')
       : 'The fixed two-fund strategies currently indicate wait or hold.';
   }
@@ -241,7 +242,7 @@ function renderToday() {
     for (const row of latest) {
       const action=plainSignal(row.signal);
       const cls=/Enter|Close/.test(action)?'attention-warn':'attention-calm';
-      items.push(`<div class="attention-item ${cls}"><strong>${escapeHtml(row.pair_key)}</strong><span>${escapeHtml(action)} · distance from normal ${Number(row.latest_z).toFixed(2)} · simulated return ${signedPct(row.forward_return)}</span></div>`);
+      items.push(`<div class="attention-item ${cls}"><strong>${escapeHtml(row.pair_key)}</strong><span>${escapeHtml(action)} · observed ${escapeHtml(dateText(row.observed_on))} · distance from normal ${Number(row.latest_z).toFixed(2)} · simulated return ${signedPct(row.forward_return)}</span></div>`);
     }
   } else {
     items.push('<div class="attention-item attention-calm"><strong>Simulated strategies</strong><span>No daily strategy snapshot has been stored yet. This is an infrastructure status, not a trading signal.</span></div>');

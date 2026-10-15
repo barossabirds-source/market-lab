@@ -80,3 +80,5 @@ footer { text-align:center; padding:26px; color:#8a94a7; font-size:.8rem; }
 .evidence-divider { padding:18px 2px 2px; margin-top:38px; border-top:1px solid #dfe4ec; }
 .evidence-divider h2 { margin-bottom:6px; }
 @media (max-width:900px) { .today-grid { grid-template-columns:1fr; } .attention-item { grid-template-columns:1fr; gap:4px; } }
+
+.asx-controls {display:flex; flex-wrap:wrap; gap:1rem; margin:1.2rem 0; align-items:flex-end}.asx-controls label {display:grid;gap:.4rem;flex:1 1 190px}.asx-controls input{max-width:100%;box-sizing:border-box}#asxResults{overflow-x:auto}#asxResults table{min-width:700px}#asxResults caption{text-align:left;padding:1rem 0;font-weight:700}#asxResults .asx-warning{border-left:4px solid #d59b38;padding:1rem;background:#fff7e6;color:#473711}
