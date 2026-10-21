@@ -7,7 +7,7 @@
     if (!p.provenance || !String(p.provenance).trim()) reasons.push('Missing provenance');
     if (p.pointInTime !== true) reasons.push('Timing not verified');
     if (p.noSignalSessions !== true) reasons.push('Comparator missing');
-    if (!Number.isInteger(p.oosCount) || p.oosCount < 30 || p.oosCount > p.returns.length) reasons.push('Insufficient out-of-sample evidence');
+    if (!Number.isInteger(p.oosCount) || p.oosCount < 30 || p.oosCount > (Array.isArray(p.returns) ? p.returns.length : 0)) reasons.push('Insufficient out-of-sample evidence');
     if (reasons.length) return {status:'insufficient_evidence',reasons};
     const net = p.returns.map(v => v - p.costBps / 10000);
     const meanNet = net.reduce((a,b)=>a+b,0)/net.length;
