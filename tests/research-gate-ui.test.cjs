@@ -1,0 +1,10 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const gate = require('../web/research-gate.js');
+const base = {returns:Array(40).fill(.003),costBps:10,freezeDate:'2026-10-16',firstDate:'2026-10-19',provenance:'Recorded ETF bars',pointInTime:true,noSignalSessions:true,oosCount:40};
+test('candidate never means approved for trading',()=>assert.equal(gate.evaluate(base).status,'research_candidate'));
+test('costs erase apparent edge',()=>assert.equal(gate.evaluate({...base,costBps:40}).status,'not_promising'));
+test('reject unverified source timing',()=>assert.equal(gate.evaluate({...base,pointInTime:false}).status,'insufficient_evidence'));
+test('reject missing comparator',()=>assert.equal(gate.evaluate({...base,noSignalSessions:false}).status,'insufficient_evidence'));
+test('reject invalid observation',()=>assert.equal(gate.evaluate({...base,returns:[NaN]}).status,'insufficient_evidence'));
+test('reject hindsight',()=>assert.equal(gate.evaluate({...base,firstDate:'2026-10-16'}).status,'insufficient_evidence'));
