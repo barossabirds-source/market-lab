@@ -26,6 +26,7 @@
     <a href="#executive">Patterns worth watching</a>
     <a href="#impact-map">What moved after an event</a>
     <a href="#trials">Ideas being tested</a>
+    <a href="#research-gate">Research gate</a>
     <a href="#evidence-detail">Explore the evidence</a>
   </nav>
 
@@ -225,12 +226,19 @@
       </div>
       <div class="safety-box"><strong>No live trading connection.</strong> Market Lab does not place brokerage orders. A strategy only reaches simulation after passing the research gates.</div>
     </section>
+    <section id="research-gate" class="section panel">
+      <h2>ASX strategy evidence gate</h2>
+      <p>Evaluates the existing ASX import without re-entering returns. Source timing and unseen-data integrity must be independently verified. No trades are placed.</p>
+      <p id="asxGateStatus" role="status">Import ASX observations to evaluate research readiness.</p>
+    </section>
   </main>
 
   <footer>Market Lab · Research and simulated testing only · Market data can contain delays or gaps.</footer>
   <script src="/runtime-config.js"></script>
   <script src="/app.js"></script>
   <script src="/asx-study.js"></script>
+  <script src="/research-gate.js"></script>
+  <script src="/research-gate-adapters.js"></script>
   <script src="/asx-ui.js"></script>
   <script src="/asx-auto.js"></script>
   <script src="/executive.js"></script>
