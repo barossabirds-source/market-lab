@@ -174,9 +174,28 @@ def freeze_prediction(db, rule, us, now):
     return True
 
 
-def sync_evidence(db, rule, now):
+def complete_coverage(raw, predictions, rule, now, calendar):
+    """Expose wholly missed sessions after registration, not just partial rows."""
+    indexed = {r['session_date']: r for r in raw}
+    first = instant(rule['registered_at']).astimezone(SYDNEY).date().isoformat()
+    last = now.astimezone(SYDNEY).date().isoformat()
+    for stamp in calendar.sessions_in_range(first, last):
+        day = stamp.date().isoformat()
+        exit_at = datetime.fromisoformat(day+'T'+rule['config']['exit_time_sydney']).replace(tzinfo=SYDNEY)
+        if exit_at > now or day in indexed:
+            continue
+        prediction = predictions.get(day)
+        p = prediction['prediction'] if prediction else {}
+        indexed[day] = {'session_date':day, 'symbol':rule['config']['symbol'],
+                        'source':'no_evening_observation', 'captured_at':now.isoformat(),
+                        'observations':dict(p, entry_at=datetime.fromisoformat(day+'T'+rule['config']['entry_time_sydney']).replace(tzinfo=SYDNEY).isoformat(), exit_at=exit_at.isoformat())}
+    return sorted(indexed.values(), key=lambda r:r['session_date'])
+
+
+def sync_evidence(db, rule, now, calendar):
     raw = read_all(db, 'asx_session_observations', 'select=*&symbol=eq.A200.AX&source=eq.yahoo_research_v1&order=session_date')
     predictions = {r['event_key']: r for r in read_all(db, 'event_predictions', f'select=*&hypothesis_key=eq.{KEY}&order=event_key')}
+    raw = complete_coverage(raw, predictions, rule, now, calendar)
     outcomes = [outcome(r, predictions.get(r['session_date']), rule, now) for r in raw]
     for start in range(0, len(outcomes), 100):
         db.request('POST', 'event_outcomes', outcomes[start:start+100], query='on_conflict=hypothesis_key,event_key',

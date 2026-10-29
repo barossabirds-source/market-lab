@@ -152,7 +152,7 @@ def main():
             db.request('POST', 'asx_session_observations', rows,
                        query='on_conflict=session_date,symbol,source',
                        prefer='resolution=ignore-duplicates,return=minimal')
-        sync_evidence(db, rule, now)
+        sync_evidence(db, rule, now, asx)
         missing = sum(r['quality'] != 'research_proxy_missing_spi' for r in rows)
         db.status('research_prices', 'partial' if rows else 'waiting',
                   'US closes and ETF minute bars collected for research. SPI futures and executable quote/auction data remain unconnected.',

@@ -2,7 +2,7 @@ import copy
 import json
 import unittest
 from datetime import datetime
-from scripts.event_evidence import RULE, outcome, summarise, freeze_prediction, register, stats
+from scripts.event_evidence import RULE, outcome, summarise, freeze_prediction, register, stats, complete_coverage
 
 
 class EvidenceTests(unittest.TestCase):
@@ -103,6 +103,15 @@ class EvidenceTests(unittest.TestCase):
                 if method=='POST': return None
                 return [dict(RULE,config={})]
         self.assertRaisesRegex(RuntimeError,'new version',register,FakeDB())
+
+    def test_wholly_missing_session_after_registration_is_visible(self):
+        import pandas as pd
+        class Calendar:
+            def sessions_in_range(self,*args): return pd.DatetimeIndex(['2026-10-28','2026-10-29'])
+        rows=complete_coverage([self.row],{},self.rule,self.now,Calendar())
+        self.assertEqual(len(rows),2)
+        self.assertEqual(rows[0]['source'],'no_evening_observation')
+        self.assertIn('missing_exact_price_bar',outcome(rows[0],None,self.rule,self.now)['result']['exclusions'])
 
 
 if __name__ == '__main__':

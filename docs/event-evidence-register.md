@@ -14,7 +14,7 @@ The dashboard's **Event evidence register** follows the frozen `wall-street-up-a
 
 The existing GitHub Actions job gains UTC morning schedules at 22:35 and 23:35 Sunday–Thursday. These cover daylight-saving and standard Sydney time; only a run arriving between 09:30 and 10:00 Sydney on an ASX session can freeze a prediction. Delayed jobs outside that window do not backdate. GitHub schedules are best-effort, not guaranteed executions.
 
-The existing after-close job stores raw observations privately as before, then derives one outcome per hypothesis/session from the first acquired provider observations. It reads all pages, keeps missing and comparison sessions, and never treats an absent bar as a zero or a losing return. Repeated runs do not duplicate events or change frozen predictions. Revision mismatches between morning US observations and evening observations are excluded.
+The existing after-close job stores raw observations privately as before, then derives one outcome per hypothesis/session from the first acquired provider observations. It reads all pages, keeps missing and comparison sessions (including wholly missed completed ASX sessions after registration), and never treats an absent bar as a zero or a losing return. Repeated runs do not duplicate events or change frozen predictions. Revision mismatches between morning US observations and evening observations are excluded.
 
 Tables:
 
