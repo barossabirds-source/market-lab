@@ -117,7 +117,9 @@ class Database:
 
 
 def main():
+    from scripts.event_evidence import register, freeze_prediction, sync_evidence
     db = Database()
+    rule = register(db)
     db.status('spi_futures', 'not_configured', 'An authorised SPI futures feed is required. No futures contract or settlement value is inferred.')
     try:
         import exchange_calendars as xcals
@@ -125,6 +127,17 @@ def main():
         now = datetime.now(timezone.utc)
         asx, nyse = xcals.get_calendar('XASX'), xcals.get_calendar('XNYS')
         us = yf.Ticker('^GSPC').history(period='1mo', interval='1d', auto_adjust=False)
+        now = datetime.now(timezone.utc)  # acquisition time, never the scheduled start time
+        local = now.astimezone(SYDNEY)
+        # Two UTC morning schedules cover Sydney daylight saving. The local-time
+        # guard accepts only the correct one; GitHub delays never backdate a prediction.
+        if local.hour < 12:
+            captured = False
+            if asx.is_session(local.date().isoformat()):
+                captured = freeze_prediction(db, rule, us_observation(us, now, nyse), now)
+            db.status('morning_prediction', 'captured' if captured else 'not_captured',
+                      'Morning prediction frozen before entry.' if captured else 'Outside the capture window, market closed, or US data missing. No prediction was backdated.')
+            return
         intraday = yf.Ticker(SYMBOL).history(period='5d', interval='1m', auto_adjust=False, prepost=False)
         daily = yf.Ticker(SYMBOL).history(period='1mo', interval='1d', auto_adjust=False)
         if intraday.empty or us.empty or daily.empty:
@@ -139,6 +152,7 @@ def main():
             db.request('POST', 'asx_session_observations', rows,
                        query='on_conflict=session_date,symbol,source',
                        prefer='resolution=ignore-duplicates,return=minimal')
+        sync_evidence(db, rule, now, asx)
         missing = sum(r['quality'] != 'research_proxy_missing_spi' for r in rows)
         db.status('research_prices', 'partial' if rows else 'waiting',
                   'US closes and ETF minute bars collected for research. SPI futures and executable quote/auction data remain unconnected.',
