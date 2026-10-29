@@ -36,9 +36,53 @@
     const frozen = new Map(predictions.map(p=>[p.event_key,p]));
     const labels = {collecting:'Collecting evidence', paused_drawdown:'Paused: drawdown rule reached', not_supported:'Not supported at review', mixed:'Mixed evidence', awaiting_validation:'Promising proxy result; awaiting validation'};
     const stale = !health[0] || Date.now()-Date.parse(health[0].checked_at)>4*86400000;
+    // Use the strongest available evidence set, never mix historical proxies with validation.
+    const opportunity = (() => {
+      if (!summary) return {assessment:'Collect more evidence', reason:'No summary is available yet.', next:'Wait for a successful evidence collection.'};
+      const minimum = rule.config.minimum_per_group;
+      const verified = summary.validated;
+      const forward = summary.forward_proxy;
+      const selected = verified.signal.n && verified.comparison.n ? verified :
+        forward.signal.n && forward.comparison.n ? forward : summary.all_proxy;
+      const basis = selected === verified ? 'Verified outcomes with pre-entry predictions' :
+        selected === forward ? 'Predictions saved before entry; price proxies' : 'Historical / exploratory price proxies';
+      let assessment = 'Collect more evidence';
+      let reason = 'The available observations do not yet establish a repeatable after-cost advantage.';
+      let next = 'Collect both US-up and flat/down sessions without changing the rule.';
+      if (stale) {
+        reason = 'The summary is missing or more than four days old.';
+        next = 'Restore collection and review fresh outcomes before assessing this idea.';
+      } else if (summary.status === 'paused_drawdown') {
+        assessment = 'Paused';
+        reason = 'The frozen drawdown stop rule has been reached.';
+        next = 'Review the losses and data quality before further simulation.';
+      } else if (summary.status === 'not_supported') {
+        assessment = 'Unsupported at review';
+        reason = 'The forward results failed the registered after-cost review rule.';
+        next = 'Keep this result in the register; any revised hypothesis needs a new version.';
+      } else if (verified.signal.n >= minimum && verified.comparison.n >= minimum &&
+                 verified.signal.mean > 0 && verified.mean_difference_aud > 0) {
+        assessment = 'Worth paper trading';
+        reason = 'Verified forward outcomes show a positive average after costs and an advantage over comparison days.';
+        next = 'Review uncertainty and competing explanations, then paper trade the unchanged rule. This is not a proven edge.';
+      } else if (forward.signal.n >= minimum && forward.comparison.n >= minimum &&
+                 forward.signal.mean > 0 && forward.mean_difference_aud > 0) {
+        assessment = 'Promising; verify prices';
+        reason = 'Forward price proxies show an after-cost advantage, but executable prices remain unverified.';
+        next = 'Validate entry and exit prices and review other news before considering paper trading.';
+      }
+      return {assessment, reason, next, basis, selected};
+    })();
     let html = `<div class="callout"><strong>${esc(labels[summary?.status] || 'Awaiting outcomes')}</strong>${stale?' · Update is missing or over four days old.':''}<br>Fixed rule: S&amp;P 500 return &gt; 0%; A200 at 10:05 → 15:55 Sydney time. Compare with US flat/down days using the same ETF and times.</div>`;
     html += `<p>Registered: ${esc(date(rule.registered_at))} Adelaide time · ${esc(key)}. Research amount ${money(rule.config.capital_aud)}; assumed round-trip brokerage ${money(rule.config.brokerage_round_trip_aud)} plus ${esc(rule.config.friction_round_trip_bps)} basis points for spread and slippage.</p>`;
     html += `<p><strong>Why this might happen:</strong> ${esc(rule.mechanism)}</p>`;
+    html += '<article class="attention-box" aria-label="Key research opportunity"><h3>Key opportunity: Wall Street up → A200 after opening</h3>';
+    html += `<p><strong>Current assessment: ${esc(opportunity.assessment)}</strong></p><p>${esc(opportunity.reason)}</p><p>Possible entry: 10:05 am Sydney time after a positive S&amp;P 500 session; exit: 3:55 pm. The opening jump occurs before entry and is excluded from the trade return.</p>`;
+    if (opportunity.selected) {
+      const g = opportunity.selected, s = g.signal;
+      html += `<p><strong>Evidence:</strong> ${esc(opportunity.basis)} · ${s.n} US-up sessions versus ${g.comparison.n} flat/down sessions.</p><p><strong>Potential advantage:</strong> average net ${money(s.mean)} per US-up example; ${money(g.mean_difference_aud)} difference from comparison days. Assumed costs are included.</p><p><strong>Downside:</strong> average loss ${money(s.average_loss)}; worst observed result ${money(s.worst)}; largest cumulative fall ${money(s.drawdown)}. Future losses may be larger.</p>`;
+    }
+    html += `<p><strong>Next action:</strong> ${esc(opportunity.next)}</p><p class="footnote">This register currently assesses one hypothesis, so there is no cross-opportunity ranking yet. Review priority follows evidence quality and after-cost advantage, not win rate alone. Meeting the sample threshold is an initial review gate, not statistical proof.</p></article>`;
     if (summary) {
       html += '<div class="metric-grid">';
       for (const [label,value] of [['Observed sessions',summary.all_proxy.observed],['Missing or excluded',summary.all_proxy.missing_or_excluded],['Predictions frozen before entry',summary.forward_proxy.observed],['Validated signal outcomes',summary.validated.signal.n]]) {
@@ -62,7 +106,7 @@
     html += '</tbody></table></div><p class="footnote">An opening gap is movement before entry, not profit from the proposed trade. Intraday best/worst movement, surprise and competing-event reviews are not yet measured. Source observations remain private; this register exposes derived research results.</p>';
     host.innerHTML=html;
     document.getElementById('exportEventEvidence').addEventListener('click',()=>{
-      const url=URL.createObjectURL(new Blob([JSON.stringify({exported_at:new Date().toISOString(),rule,summary,predictions,outcomes},null,2)],{type:'application/json'}));
+      const url=URL.createObjectURL(new Blob([JSON.stringify({exported_at:new Date().toISOString(),rule,summary,opportunity,predictions,outcomes},null,2)],{type:'application/json'}));
       const link=document.createElement('a');link.href=url;link.download='market-lab-event-evidence.json';link.click();URL.revokeObjectURL(url);
     });
   } catch (error) {
