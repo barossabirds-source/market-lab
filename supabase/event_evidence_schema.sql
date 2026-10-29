@@ -37,6 +37,7 @@ alter table public.event_predictions enable row level security;
 alter table public.event_outcomes enable row level security;
 revoke all on public.event_hypotheses, public.event_predictions, public.event_outcomes from anon, authenticated;
 grant select on public.event_hypotheses, public.event_predictions, public.event_outcomes to anon, authenticated;
+revoke all on public.event_hypotheses, public.event_predictions, public.event_outcomes from service_role;
 grant select, insert on public.event_hypotheses, public.event_predictions to service_role;
 revoke update, delete on public.event_hypotheses, public.event_predictions from service_role;
 grant select, insert, update on public.event_outcomes to service_role;
