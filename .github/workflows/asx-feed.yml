@@ -4,10 +4,13 @@ on:
   schedule:
     # After ASX close in both Sydney time regimes. Delay is acceptable for research.
     - cron: '20 7 * * 1-5'
+    # 09:35 Sydney, with a local-time guard for DST and delayed jobs.
+    - cron: '35 22,23 * * 0-4'
   push:
     branches: [main]
     paths:
       - scripts/collect_asx_feed.py
+      - scripts/event_evidence.py
       - .github/workflows/asx-feed.yml
 permissions:
   contents: read
@@ -28,5 +31,6 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements-asx-feed.txt
+      - run: python -m unittest discover -s tests -p 'test_*evidence.py'
       - run: python -m unittest discover -s tests -p 'test_asx_feed.py'
       - run: python -m scripts.collect_asx_feed
